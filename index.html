@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Network Layer Explained: articles, demos and quizzes</title>
+  <meta name="description" content="Five articles on the Network Layer of computer networks: routing, forwarding, IP addressing and congestion control, with interactive demos.">
+  <script>try{var t=localStorage.getItem('nl-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/script.js" defer></script>
+</head>
+<body data-root=".">
+  <a class="skip" href="#articles">Skip to articles</a>
+  <div id="site-header"></div>
+
+  <main>
+    <section class="hero" id="demo">
+      <div class="wrap hero-grid">
+        <div>
+          <h1>Follow one packet from your PC to a server.</h1>
+          <p class="lede">Every router on the way makes one decision using one table. Send a packet and watch each hop, then read the five articles that explain how those tables are built, addressed and kept from jamming.</p>
+          <div class="cta">
+            <a class="btn" href="articles/architecture.html">Start with Article 1</a>
+            <a class="btn btn-ghost" href="#articles">Browse all five articles</a>
+          </div>
+        </div>
+        <div class="demo">
+          <svg id="demo-svg" viewBox="0 0 560 300" role="img" aria-label="Network with a PC, five routers, a web server and a mail server. A packet travels hop by hop to the chosen server."></svg>
+          <div class="demo-bar">
+            <button class="btn" type="button" data-dest="WEB">Send to web server</button>
+            <button class="btn btn-ghost" type="button" data-dest="MAIL">Send to mail server</button>
+          </div>
+          <ol class="log" id="demo-log" aria-live="polite"></ol>
+          <p class="demo-note">Each router looks only at the destination address and its own table. Full forwarding tables come in Article 3.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="articles">
+      <div class="wrap">
+        <h2>Five articles, one path through the Network Layer</h2>
+        <p class="sub">Read them in order, or jump to the topic you are revising. Each ends with worked problems and a short quiz.</p>
+        <div class="chips" id="chips" role="group" aria-label="Filter articles by category"></div>
+        <ul class="rows" id="list"></ul>
+        <noscript><p class="sub">Turn on JavaScript to see the article list and demos.</p></noscript>
+      </div>
+    </section>
+  </main>
+
+  <div id="site-footer"></div>
+</body>
+</html>
