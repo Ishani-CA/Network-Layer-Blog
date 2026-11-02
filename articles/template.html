@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Article template | Network Layer Explained</title>
+  <meta name="robots" content="noindex">
+  <script>try{var t=localStorage.getItem('nl-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+  <link rel="stylesheet" href="../css/style.css">
+  <script src="../js/script.js" defer></script>
+</head>
+<!-- To make a real article: copy this file, set data-article to the article id, replace the content, keep the class names. -->
+<body data-root=".." data-article="routing">
+  <div id="site-header"></div>
+  <header class="wrap article-head">
+    <h1>Article template: every component in one place</h1>
+    <p class="meta">Category, 10 min read</p>
+  </header>
+
+  <div class="wrap article-layout">
+    <aside class="toc" aria-label="On this page"><h2>On this page</h2><ol></ol></aside>
+
+    <article class="prose">
+      <h2>Introduction</h2>
+      <p>Each article opens with the problem it solves. The table of contents on the side is built from the <code>h2</code> headings, so you never write one by hand.</p>
+
+      <h2>Fundamental concepts</h2>
+      <p>Define the terms first. Use a callout for the one idea a reader must not miss.</p>
+      <div class="callout"><p><strong>Key idea.</strong> A router forwards each packet using only the destination address and its own table.</p></div>
+      <div class="callout warn"><p><strong>Common mistake.</strong> Routing decides the table; forwarding uses it. They are different steps.</p></div>
+
+      <h2>Detailed explanations</h2>
+      <h3>Comparisons use a table</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Service</th><th>Set-up needed</th><th>Packets may reorder</th></tr></thead>
+        <tbody><tr><td>Datagram</td><td>No</td><td>Yes</td></tr><tr><td>Virtual circuit</td><td>Yes</td><td>No</td></tr></tbody>
+      </table></div>
+
+      <h2>Working principles and processes</h2>
+      <p>Show addresses and short traces as code blocks.</p>
+<pre><code>Destination 203.0.113.7
+Match      203.0.113.0/24
+Next hop   R3</code></pre>
+
+      <h2>Diagrams and visual explanations</h2>
+      <figure class="fig">
+        <svg viewBox="0 0 400 110" role="img" aria-label="Three routers in a line, A to B to C, with a packet on the link from A to B.">
+          <line x1="60" y1="55" x2="200" y2="55" stroke="var(--line)" stroke-width="2"/><line x1="200" y1="55" x2="340" y2="55" stroke="var(--line)" stroke-width="2"/>
+          <g fill="var(--panel2)" stroke="var(--accent)" stroke-width="1.5"><rect x="40" y="40" width="40" height="30" rx="6"/><rect x="180" y="40" width="40" height="30" rx="6"/><rect x="320" y="40" width="40" height="30" rx="6"/></g>
+          <g fill="var(--text)" font-family="monospace" font-size="12" text-anchor="middle"><text x="60" y="60">A</text><text x="200" y="60">B</text><text x="340" y="60">C</text></g>
+          <circle cx="130" cy="55" r="6" fill="var(--accent)"/>
+        </svg>
+        <figcaption>Figure 1. Every diagram gets a numbered caption and an aria-label that describes it in words.</figcaption>
+      </figure>
+
+      <h2>Practical examples and worked problems</h2>
+      <details class="worked" open>
+        <summary>Worked problem: how many hosts fit in a /26?</summary>
+        <div class="body"><p>A /26 leaves 32 &minus; 26 = 6 host bits, so 2<sup>6</sup> = 64 addresses. Two are reserved (network and broadcast), leaving <strong>62 usable hosts</strong>.</p></div>
+      </details>
+
+      <h2>Real-world applications</h2>
+      <p>Connect each idea to something students have used, such as <code>ping</code> or home Wi-Fi.</p>
+
+      <h2>Advantages, limitations and comparisons</h2>
+      <p>State trade-offs plainly: what the technique costs as well as what it gives.</p>
+
+      <h2>Key takeaways</h2>
+      <div class="takeaways"><ul>
+        <li>Keesp three to six points, each one sentence.</li>
+        <li>Write them so they work as revision notes.</li>
+      </ul></div>
+
+      <h2>Check your understanding</h2>
+      <section class="quiz" data-answer="b" aria-labelledby="q1">
+        <h3 id="q1">Quick check</h3>
+        <p class="q">How many usable host addresses are in a /30 network?</p>
+        <button class="opt" type="button" data-opt="a">4</button>
+        <button class="opt" type="button" data-opt="b">2</button>
+        <button class="opt" type="button" data-opt="c">1</button>
+        <p class="explain" aria-live="polite" hidden>A /30 has 2 host bits, so 4 addresses. The network and broadcast addresses are reserved, leaving 2.</p>
+      </section>
+
+      <h2>References and further reading</h2>
+      <ul>
+        <li>List textbooks, RFCs and course notes here, with chapter or RFC numbers.</li>
+      </ul>
+
+      <nav id="pager" class="pager" aria-label="Article navigation"></nav>
+    </article>
+  </div>
+
+  <div id="site-footer"></div>
+</body>
+</html>
