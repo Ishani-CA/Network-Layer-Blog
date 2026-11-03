@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Architecture, functions and internetworking | Network Layer Explained</title>
+  <meta name="description" content="What the network layer does, datagram and virtual-circuit service, internetworking, direct and indirect delivery, and tunneling.">
   <script>try{var t=localStorage.getItem('nl-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,13 +12,195 @@
   <link rel="stylesheet" href="../css/style.css">
   <script src="../js/script.js" defer></script>
 </head>
-<body data-root="..">
+<body data-root=".." data-article="architecture">
   <div id="site-header"></div>
-  <main class="wrap stub">
-    <h1>Architecture, functions and internetworking</h1>
-    <p>This article is written in a later phase. The page, navigation, theme toggle and search already work here.</p>
-    <p><a href="../index.html#articles">Back to all articles</a></p>
-  </main>
+  <header class="wrap article-head">
+    <h1>Network layer architecture, functions and internetworking</h1>
+    <p class="meta">Article 1, Foundations, 12 min read</p>
+  </header>
+
+  <div class="wrap article-layout">
+    <aside class="toc" aria-label="On this page"><h2>On this page</h2><ol></ol></aside>
+
+    <article class="prose">
+      <h2>Introduction</h2>
+      <p>When you open a website, your request crosses a home router, an ISP, several backbone networks and a data centre before it reaches a server. No single wire connects you to that server, and no machine along the way knows the whole journey. The layer that makes this work is the <strong>network layer</strong>. Its job is to carry a packet from the source host to the destination host, however many different networks lie between them.</p>
+      <p>This article covers what the layer is responsible for, the two ways it can offer service, how unlike networks are joined into one internet, and how tunneling lets one protocol travel inside another.</p>
+
+      <h2>Fundamental concepts</h2>
+      <p>A <strong>host</strong> is an end device such as a laptop or server. A <strong>router</strong> is a device with several network connections that forwards packets between them. A <strong>packet</strong> is the unit of data the network layer handles: a payload from the transport layer plus a network-layer header carrying addresses and control fields.</p>
+      <p>Each layer near the bottom has a different idea of delivery:</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Layer</th><th>Delivers between</th><th>Identified by</th></tr></thead>
+        <tbody>
+          <tr><td>Data link</td><td>Two directly connected devices (one hop)</td><td>MAC address</td></tr>
+          <tr><td>Network</td><td>Source host and destination host, across many networks</td><td>IP address</td></tr>
+          <tr><td>Transport</td><td>A process on one host and a process on another</td><td>Port number</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout"><p><strong>Key idea.</strong> The data link layer moves a frame one hop. The network layer strings many hops together into an end-to-end path.</p></div>
+
+      <h2>Detailed explanations</h2>
+      <h3>Design issues</h3>
+      <p>Designers of the network layer had to settle several questions:</p>
+      <ul>
+        <li><strong>The service offered upward.</strong> The transport layer should not need to know how many routers exist, what technology links them, or how they are arranged. It sees one uniform address scheme and a simple delivery service.</li>
+        <li><strong>Store-and-forward switching.</strong> A router receives a whole packet, checks it, stores it briefly and then sends it on.</li>
+        <li><strong>Connectionless or connection-oriented service.</strong> Should packets be routed independently, or should a path be set up first?</li>
+        <li><strong>Addressing.</strong> Every host needs a logical address that identifies it and also helps routers decide where to send packets.</li>
+        <li><strong>Routing and forwarding.</strong> Routers need a way to learn good paths and a fast way to use them.</li>
+        <li><strong>Differences between networks.</strong> Maximum packet sizes, addressing and quality of service vary from network to network.</li>
+        <li><strong>Congestion.</strong> Too much traffic at a router must be prevented or relieved (see Article 5).</li>
+      </ul>
+
+      <h3>Functions and services</h3>
+      <p>In practice the layer performs these functions: logical addressing, routing (building the paths), forwarding (moving each packet to its next hop), fragmentation and reassembly when a link cannot carry a packet whole, error reporting and diagnostics through ICMP, and congestion control.</p>
+      <p>It can offer two kinds of service to the layer above: <strong>connectionless</strong> and <strong>connection-oriented</strong>. The next two subsections describe how each is implemented.</p>
+
+      <h3>Datagram networks (connectionless service)</h3>
+      <p>In a datagram network every packet, called a datagram, is treated on its own. Each one carries the full destination address. A router keeps a <strong>forwarding table</strong> that maps destinations (usually address prefixes) to outgoing links, and it looks up each packet separately. Two packets from the same message can therefore take different paths, arrive out of order, or be lost. The network promises <em>best effort</em> and nothing more. If reliability is needed, the transport layer provides it. The Internet’s IP works this way.</p>
+
+      <h3>Virtual-circuit networks (connection-oriented service)</h3>
+      <p>A virtual-circuit network first runs a set-up phase that picks a path and gives it a short circuit number. Each router on the path records an entry for that circuit. Data packets then carry only the circuit number, follow the chosen path in order, and the circuit is torn down at the end. This keeps per-connection state in every router on the path.</p>
+
+      <h3>Internetworking</h3>
+      <p>The Internet is a collection of separately built networks that differ in many ways: address formats, the largest packet they can carry (the MTU), the protocols they use, and the quality-of-service and security rules they apply. <strong>Internetworking</strong> joins them. Routers sit at the boundaries, and a common network-layer protocol (IP) runs on top of every network, hiding the differences. When a packet is larger than the next network’s MTU, the router splits it into fragments that are reassembled at the destination.</p>
+
+      <h3>Direct and indirect delivery</h3>
+      <p>A sender first asks one question: <em>is the destination on my own network?</em></p>
+      <ul>
+        <li><strong>Direct delivery:</strong> the destination is on the same network, so the packet goes straight to that host at the link layer.</li>
+        <li><strong>Indirect delivery:</strong> the destination is on a different network, so the packet is sent to a router (the default gateway), which forwards it hop by hop. Every delivery ends with direct delivery on the last network, from the final router to the destination host.</li>
+      </ul>
+
+      <h3>Tunneling</h3>
+      <p>Sometimes two networks of the same type must communicate across a different type of network in between, for example two IPv6 networks connected through an IPv4-only network. With <strong>tunneling</strong>, the router at the tunnel entrance wraps the entire IPv6 packet as the payload of an IPv4 packet. The IPv4 network forwards it like any other packet. The router at the exit removes the outer header and delivers the original IPv6 packet.</p>
+
+      <h2>Working principles and processes</h2>
+      <h3>Store-and-forward at one router</h3>
+      <ol>
+        <li>The packet arrives and is received completely on the incoming link.</li>
+        <li>The router checks it for damage (in IPv4, by verifying the header checksum).</li>
+        <li>It looks up the destination in its forwarding table to find the outgoing link.</li>
+        <li>The packet waits in that link’s queue until the link is free.</li>
+        <li>It is transmitted to the next hop.</li>
+      </ol>
+      <h3>A datagram crossing the network</h3>
+<pre><code>Packet to 203.0.113.7 arrives at R1
+R1 lookup: 203.0.113.0/24 -> link 2, next hop R3
+R3 lookup: 203.0.113.0/24 -> link 3, next hop R4
+R4: network 203.0.113.0/24 is directly connected, deliver to host</code></pre>
+      <p>No router knows the whole path. Each makes one local decision.</p>
+
+      <h2>Diagrams and visual explanations</h2>
+      <figure class="fig">
+        <svg viewBox="0 0 560 190" role="img" aria-label="Host A, router R1, router R2 and host B in a line. A bar above spans A to B for the network layer. Three shorter bars below cover each link for the data link layer.">
+          <g stroke="var(--line)" stroke-width="2"><line x1="70" y1="95" x2="200" y2="95"/><line x1="200" y1="95" x2="360" y2="95"/><line x1="360" y1="95" x2="490" y2="95"/></g>
+          <g fill="var(--panel2)" stroke="var(--accent)" stroke-width="1.5"><rect x="40" y="80" width="60" height="30" rx="6"/><rect x="180" y="80" width="40" height="30" rx="6"/><rect x="340" y="80" width="40" height="30" rx="6"/><rect x="460" y="80" width="60" height="30" rx="6"/></g>
+          <g fill="var(--text)" font-family="monospace" font-size="12" text-anchor="middle"><text x="70" y="99">Host A</text><text x="200" y="99">R1</text><text x="360" y="99">R2</text><text x="490" y="99">Host B</text></g>
+          <rect x="70" y="30" width="420" height="26" rx="6" fill="var(--accent)"/>
+          <text x="280" y="48" font-family="monospace" font-size="12" text-anchor="middle" fill="var(--on-accent)">Network layer: host to host</text>
+          <g fill="var(--panel2)" stroke="var(--accent2)" stroke-width="1.5"><rect x="75" y="130" width="120" height="24" rx="6"/><rect x="205" y="130" width="150" height="24" rx="6"/><rect x="365" y="130" width="120" height="24" rx="6"/></g>
+          <g fill="var(--text)" font-family="monospace" font-size="11" text-anchor="middle"><text x="135" y="146">Data link: hop 1</text><text x="280" y="146">Data link: hop 2</text><text x="425" y="146">Data link: hop 3</text></g>
+        </svg>
+        <figcaption>Figure 1. One network-layer journey is made of several data-link hops.</figcaption>
+      </figure>
+      <figure class="fig">
+        <svg viewBox="0 0 560 200" role="img" aria-label="Two IPv6 networks joined through an IPv4 network. The entry router wraps the IPv6 packet in an IPv4 header, and the exit router removes it.">
+          <rect x="170" y="30" width="220" height="70" rx="14" fill="var(--panel2)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="280" y="50" font-family="monospace" font-size="11" text-anchor="middle" fill="var(--muted)">IPv4-only network</text>
+          <line x1="130" y1="75" x2="430" y2="75" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 5"/>
+          <g fill="var(--panel2)" stroke="var(--accent)" stroke-width="1.5"><rect x="20" y="60" width="70" height="30" rx="6"/><rect x="100" y="60" width="50" height="30" rx="6"/><rect x="410" y="60" width="50" height="30" rx="6"/><rect x="470" y="60" width="70" height="30" rx="6"/></g>
+          <g fill="var(--text)" font-family="monospace" font-size="11" text-anchor="middle"><text x="55" y="79">IPv6 host</text><text x="125" y="79">Entry</text><text x="435" y="79">Exit</text><text x="505" y="79">IPv6 host</text></g>
+          <text x="280" y="125" font-family="monospace" font-size="11" text-anchor="middle" fill="var(--muted)">Packet inside the tunnel</text>
+          <rect x="190" y="135" width="70" height="36" rx="4" fill="var(--accent2)"/>
+          <text x="225" y="157" font-family="monospace" font-size="11" text-anchor="middle" fill="#fff">IPv4 hdr</text>
+          <rect x="260" y="135" width="110" height="36" rx="4" fill="var(--accent)"/>
+          <text x="315" y="157" font-family="monospace" font-size="11" text-anchor="middle" fill="var(--on-accent)">IPv6 packet</text>
+        </svg>
+        <figcaption>Figure 2. Tunneling: the whole IPv6 packet becomes the payload of an IPv4 packet.</figcaption>
+      </figure>
+
+      <h2>Practical examples and worked problems</h2>
+      <details class="worked" open>
+        <summary>Problem 1: store-and-forward delay</summary>
+        <div class="body"><p>A 12,000-bit packet crosses three links, each 1 Mbps, through two routers. Ignore propagation and queuing delay. How long does it take?</p>
+        <p>Each link needs 12,000 / 1,000,000 = 12 ms to transmit the packet. A router must receive the whole packet before sending it on, so the transmissions happen one after another: 3 &times; 12 ms = <strong>36 ms</strong>.</p></div>
+      </details>
+      <details class="worked">
+        <summary>Problem 2: direct or indirect delivery?</summary>
+        <div class="body"><p>A host at 192.168.1.10 with mask 255.255.255.0 and default gateway 192.168.1.1 sends to (a) 192.168.1.50 and (b) 192.168.2.5.</p>
+        <p>The sender’s network is 192.168.1.0/24. For (a), the destination is in the same network, so delivery is <strong>direct</strong>. For (b), 192.168.2.5 lies in 192.168.2.0/24, a different network, so delivery is <strong>indirect</strong>: the packet goes to the gateway 192.168.1.1.</p></div>
+      </details>
+      <details class="worked">
+        <summary>Problem 3: tunnel overhead</summary>
+        <div class="body"><p>An IPv6 packet of 1,500 bytes enters an IPv4 tunnel that adds a 20-byte outer header. The tunnel links have an MTU of 1,500 bytes.</p>
+        <p>The encapsulated packet is 1,500 + 20 = 1,520 bytes, which is larger than the MTU. It must be fragmented, or the inner packet must be limited to 1,500 &minus; 20 = <strong>1,480 bytes</strong>. This is why tunnels often lower the usable packet size.</p></div>
+      </details>
+
+      <h2>Real-world applications</h2>
+      <ul>
+        <li><strong>The Internet.</strong> IP is a datagram service, so each packet you send is routed independently.</li>
+        <li><strong>Provider backbones.</strong> Carriers use MPLS, which forwards by short labels along paths set up in advance, much like virtual circuits.</li>
+        <li><strong>VPNs.</strong> A VPN tunnels your private traffic through the public Internet, wrapped inside outer packets.</li>
+        <li><strong>IPv6 transition.</strong> Configured tunnels carry IPv6 across IPv4-only parts of the network.</li>
+        <li><strong>Your home router.</strong> It is your default gateway, so every packet to another network is indirect delivery through it.</li>
+      </ul>
+
+      <h2>Advantages, limitations and comparisons</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Issue</th><th>Datagram</th><th>Virtual circuit</th></tr></thead>
+        <tbody>
+          <tr><td>Set-up</td><td>None</td><td>Required before data</td></tr>
+          <tr><td>Addressing</td><td>Full destination address in every packet</td><td>Short circuit number in every packet</td></tr>
+          <tr><td>Router state</td><td>Forwarding table only</td><td>Entry for every circuit</td></tr>
+          <tr><td>Router failure</td><td>Packets lost, routes can change</td><td>All circuits through it end</td></tr>
+          <tr><td>Packet order</td><td>May arrive out of order</td><td>Kept in order</td></tr>
+          <tr><td>Congestion and QoS</td><td>Harder to guarantee</td><td>Easier, resources reserved at set-up</td></tr>
+        </tbody>
+      </table></div>
+      <p>Tunneling lets networks interconnect without changing the networks in between, but it adds header overhead, lowers the usable packet size, and makes troubleshooting harder because the real packet is hidden inside another.</p>
+
+      <h2>Key takeaways</h2>
+      <div class="takeaways"><ul>
+        <li>The network layer delivers packets host to host across many networks, using logical addresses.</li>
+        <li>Routers use store-and-forward switching and decide hop by hop.</li>
+        <li>Datagram service routes each packet independently, while virtual circuits set up a path first.</li>
+        <li>Internetworking joins different networks through routers and a common protocol, IP.</li>
+        <li>A sender uses direct delivery on its own network and indirect delivery through a router otherwise.</li>
+        <li>Tunneling carries one protocol’s packets inside another’s.</li>
+      </ul></div>
+
+      <h2>Check your understanding</h2>
+      <section class="quiz" data-answer="a" aria-labelledby="q1">
+        <h3 id="q1">Question 1</h3>
+        <p class="q">A host at 10.0.0.5/24 sends a packet to 10.0.0.77. What kind of delivery is used?</p>
+        <button class="opt" type="button" data-opt="a">Direct delivery</button>
+        <button class="opt" type="button" data-opt="b">Indirect delivery through the default gateway</button>
+        <button class="opt" type="button" data-opt="c">The packet is dropped</button>
+        <p class="explain" aria-live="polite" hidden>Both addresses are in 10.0.0.0/24, so the destination is on the sender’s own network and the packet is delivered directly.</p>
+      </section>
+      <section class="quiz" data-answer="b" aria-labelledby="q2">
+        <h3 id="q2">Question 2</h3>
+        <p class="q">Which statement describes a datagram network?</p>
+        <button class="opt" type="button" data-opt="a">Routers keep a table entry for every connection</button>
+        <button class="opt" type="button" data-opt="b">Each packet carries the destination address and is forwarded independently</button>
+        <button class="opt" type="button" data-opt="c">Packets always arrive in the order they were sent</button>
+        <p class="explain" aria-live="polite" hidden>Datagram routers keep only a forwarding table and treat every packet separately, so packets can take different paths and arrive out of order.</p>
+      </section>
+
+      <h2>References and further reading</h2>
+      <ul>
+        <li>A. S. Tanenbaum and D. J. Wetherall, <em>Computer Networks</em>, chapter on the network layer.</li>
+        <li>B. A. Forouzan, <em>Data Communications and Networking</em>, chapters on network-layer delivery and internetworking.</li>
+        <li>RFC 791, Internet Protocol; RFC 1812, Requirements for IP Version 4 Routers.</li>
+        <li>RFC 4213, Basic Transition Mechanisms for IPv6 Hosts and Routers (configured tunnels).</li>
+      </ul>
+
+      <nav id="pager" class="pager" aria-label="Article navigation"></nav>
+    </article>
+  </div>
+
   <div id="site-footer"></div>
 </body>
 </html>

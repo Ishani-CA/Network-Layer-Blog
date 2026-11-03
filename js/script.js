@@ -6,7 +6,7 @@
 
   /* ---------- Content data (also feeds search) ---------- */
   var ARTICLES = [
-    { id: 'architecture', cat: 'Foundations', min: 12,
+    { id: 'architecture', cat: 'Foundations', min: 13,
       title: 'Architecture, functions and internetworking',
       sum: 'What the network layer is for, the services it offers the layers around it, and how unlike networks are joined into one internet.',
       topics: ['Design issues', 'Functions and services', 'Connectionless and connection-oriented service', 'Datagram networks', 'Internetworking', 'Direct and indirect delivery', 'Tunneling'] },
