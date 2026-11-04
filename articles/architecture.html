@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Architecture, functions and internetworking | Network Layer Explained</title>
-  <meta name="description" content="What the network layer does, datagram and virtual-circuit service, internetworking, direct and indirect delivery, and tunneling.">
+  <meta name="description" content="A comprehensive guide to network layer architecture, datagram and virtual-circuit services, internetworking, direct and indirect delivery, and packet tunneling.">
   <script>try{var t=localStorage.getItem('nl-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
   <div id="site-header"></div>
   <header class="wrap article-head">
     <h1>Network layer architecture, functions and internetworking</h1>
-    <p class="meta">Article 1, Foundations, 12 min read</p>
+    <p class="meta">Article 1, Foundations, 14 min read</p>
   </header>
 
   <div class="wrap article-layout">
@@ -24,177 +24,367 @@
 
     <article class="prose">
       <h2>Introduction</h2>
-      <p>When you open a website, your request crosses a home router, an ISP, several backbone networks and a data centre before it reaches a server. No single wire connects you to that server, and no machine along the way knows the whole journey. The layer that makes this work is the <strong>network layer</strong>. Its job is to carry a packet from the source host to the destination host, however many different networks lie between them.</p>
-      <p>This article covers what the layer is responsible for, the two ways it can offer service, how unlike networks are joined into one internet, and how tunneling lets one protocol travel inside another.</p>
+      <p>Every time you open a web browser on your personal computer (PC) or smartphone and request a web page, that simple action initiates an impressive global journey. Your data request departs your device, travels across your home Wi-Fi network, enters your Internet Service Provider (ISP), traverses high-capacity regional and transcontinental fiber-optic backbone networks, passes through enterprise data center switches, and finally reaches the destination server. Seconds later, the requested web page arrives back on your screen.</p>
+      <p>No single physical cable connects your computer directly to that remote server. More importantly, no single machine along the path possesses a complete, step-by-step map of the entire global network. Despite this lack of centralized coordination, billions of messages traverse the globe reliably every second. The system component responsible for coordinating this miracle is the <strong>network layer</strong> (Layer 3 in the standard Open Systems Interconnection [OSI] model and Internet protocol suite). Its primary mission is host-to-host packet delivery: taking a discrete unit of data from a source host and transporting it across multiple diverse networks until it reaches its intended destination host.</p>
+      <p>In this article, we examine the fundamental architectural challenges that make the network layer necessary. We will explore how packets are forwarded across intermediate routers, contrast connectionless datagram delivery with connection-oriented virtual circuits, explain how disparate networks are joined into a unified global internetwork, and examine how packet tunneling allows incompatible communication protocols to coexist peacefully.</p>
 
       <h2>Fundamental concepts</h2>
-      <p>A <strong>host</strong> is an end device such as a laptop or server. A <strong>router</strong> is a device with several network connections that forwards packets between them. A <strong>packet</strong> is the unit of data the network layer handles: a payload from the transport layer plus a network-layer header carrying addresses and control fields.</p>
-      <p>Each layer near the bottom has a different idea of delivery:</p>
+      <p>To understand the network layer, we must first define the core hardware entities and data units that operate at this level of a computer network:</p>
+      <ul>
+        <li><strong>Host (End System):</strong> Any computing device that initiates or receives application communications, such as a personal computer (PC), mobile phone, networked printer, or cloud server. Hosts sit at the edges of the network.</li>
+        <li><strong>Router:</strong> A specialized intermediate networking device with multiple physical interfaces connected to distinct networks. A router's primary purpose is to inspect incoming packets, make fast forwarding decisions based on an internal table, and relay those packets along the most suitable transmission path toward their ultimate destination.</li>
+        <li><strong>Packet (Network Datagram):</strong> The standardized unit of data handled at the network layer. When an application transmits information, the transport layer packages it into a segment (such as a Transmission Control Protocol [TCP] segment or User Datagram Protocol [UDP] packet). The network layer wraps this payload in its own header—containing essential control fields, quality parameters, and global logical addresses—to produce an <em>IP packet</em>. When passed down to the data link layer, this packet is further enclosed inside a <em>frame</em> for physical transmission.</li>
+      </ul>
+
+      <p>A common source of confusion for learners is understanding how delivery at the network layer differs from delivery at the layers directly above and below it. Each layer solves a different scope of the communication problem:</p>
+
       <div class="table-wrap"><table>
-        <thead><tr><th>Layer</th><th>Delivers between</th><th>Identified by</th></tr></thead>
+        <thead><tr><th>Protocol Layer</th><th>Delivers Data Between</th><th>Primary Addressing Scheme</th><th>Scope of Responsibility</th></tr></thead>
         <tbody>
-          <tr><td>Data link</td><td>Two directly connected devices (one hop)</td><td>MAC address</td></tr>
-          <tr><td>Network</td><td>Source host and destination host, across many networks</td><td>IP address</td></tr>
-          <tr><td>Transport</td><td>A process on one host and a process on another</td><td>Port number</td></tr>
+          <tr>
+            <td><strong>Data Link Layer</strong> (Layer 2)</td>
+            <td>Two directly connected devices sharing a physical medium (one single hop).</td>
+            <td>Physical Media Access Control (MAC) address (48-bit hardware identifier burned into a Network Interface Card [NIC]).</td>
+            <td>Hop-by-hop local framing, physical link error checking, and local media access.</td>
+          </tr>
+          <tr>
+            <td><strong>Network Layer</strong> (Layer 3)</td>
+            <td>The original source host and the final destination host across multiple intermediate networks.</td>
+            <td>Logical Internet Protocol (IP) address (such as a 32-bit IPv4 or 128-bit IPv6 address).</td>
+            <td>End-to-end host-to-host routing, logical path selection, packet forwarding, and fragmentation.</td>
+          </tr>
+          <tr>
+            <td><strong>Transport Layer</strong> (Layer 4)</td>
+            <td>A specific software process on the source host and a specific software process on the destination host.</td>
+            <td>Port number (e.g., port 80/443 for web traffic, port 22 for secure shell [SSH]).</td>
+            <td>Process-to-process multiplexing, reliability, end-to-end flow control, and data stream reassembly.</td>
+          </tr>
         </tbody>
       </table></div>
-      <div class="callout"><p><strong>Key idea.</strong> The data link layer moves a frame one hop. The network layer strings many hops together into an end-to-end path.</p></div>
+
+      <div class="callout"><p><strong>Key idea.</strong> The data link layer is responsible for moving a frame across a single physical hop from one network interface to the next. In contrast, the network layer stitches many individual hops together to build an end-to-end delivery path across the entire globe.</p></div>
 
       <h2>Detailed explanations</h2>
-      <h3>Design issues</h3>
-      <p>Designers of the network layer had to settle several questions:</p>
+
+      <h3>Design issues in the network layer</h3>
+      <p>When the pioneers of modern networking developed the network layer, they had to solve several profound architectural dilemmas. Understanding these design questions helps explain why modern networks behave the way they do:</p>
       <ul>
-        <li><strong>The service offered upward.</strong> The transport layer should not need to know how many routers exist, what technology links them, or how they are arranged. It sees one uniform address scheme and a simple delivery service.</li>
-        <li><strong>Store-and-forward switching.</strong> A router receives a whole packet, checks it, stores it briefly and then sends it on.</li>
-        <li><strong>Connectionless or connection-oriented service.</strong> Should packets be routed independently, or should a path be set up first?</li>
-        <li><strong>Addressing.</strong> Every host needs a logical address that identifies it and also helps routers decide where to send packets.</li>
-        <li><strong>Routing and forwarding.</strong> Routers need a way to learn good paths and a fast way to use them.</li>
-        <li><strong>Differences between networks.</strong> Maximum packet sizes, addressing and quality of service vary from network to network.</li>
-        <li><strong>Congestion.</strong> Too much traffic at a router must be prevented or relieved (see Article 5).</li>
+        <li><strong>Service interface to the transport layer:</strong> The network layer must present a clean, consistent abstraction to the transport layer above it. Applications and transport protocols should not need to know how many intermediate routers exist, what physical transmission media (fiber-optic glass, copper cable, or radio frequency) link them, or how the physical topology is organized. The transport layer simply sees a uniform, global addressing scheme and an end-to-end delivery pipe.</li>
+        <li><strong>Store-and-forward switching mechanism:</strong> Unlike traditional circuit-switched telephone networks that reserved a dedicated physical wire for an entire conversation, modern networks utilize packet switching. An intermediate router receives a complete incoming packet, temporarily stores it in memory (buffers it) to verify its integrity and read its destination address, and then forwards it along the appropriate outgoing link when that link becomes available.</li>
+        <li><strong>Connectionless versus connection-oriented service:</strong> Should the network layer set up a predetermined, reserved circuit before any data can flow (similar to making a telephone call), or should it treat every packet as an independent entity and route each one on the fly (similar to sending individual postal letters)? Both philosophies have distinct trade-offs, explored in detail below.</li>
+        <li><strong>Universal logical addressing:</strong> Because underlying local networks use fundamentally incompatible hardware addresses (such as Ethernet MAC addresses, Wi-Fi identifiers, or point-to-point link protocols), the network layer must provide a globally unique, hierarchical logical addressing scheme—most notably the Internet Protocol (IP) address. This scheme identifies every connected host and allows routers to group addresses into manageable network prefixes.</li>
+        <li><strong>Separation of routing and forwarding:</strong> To operate efficiently, modern routers divide their responsibilities into two distinct operations:
+          <ul>
+            <li><em>Control plane (Routing):</em> The collective decision-making process where routers execute complex routing algorithms to exchange information, discover network topology, and compute optimal paths across the entire network.</li>
+            <li><em>Data plane (Forwarding):</em> The local, high-speed per-packet action of taking an incoming packet from an input interface, consulting an internal forwarding table, and dispatching it to the correct outgoing interface.</li>
+          </ul>
+        </li>
+        <li><strong>Handling network heterogeneity:</strong> Different physical networks enforce different maximum packet size limits, use different link-layer protocols, and offer different transmission speeds. The network layer must harmonize these differences without interrupting end-to-end communication.</li>
+        <li><strong>Congestion management:</strong> If traffic arrives at an intermediate router faster than the router's outgoing link can transmit it, internal memory buffers fill up. Left unchecked, this causes severe delays, packet loss, and throughput collapse. The network layer must incorporate strategies to detect, avoid, and relieve congestion.</li>
       </ul>
 
       <h3>Functions and services</h3>
-      <p>In practice the layer performs these functions: logical addressing, routing (building the paths), forwarding (moving each packet to its next hop), fragmentation and reassembly when a link cannot carry a packet whole, error reporting and diagnostics through ICMP, and congestion control.</p>
-      <p>It can offer two kinds of service to the layer above: <strong>connectionless</strong> and <strong>connection-oriented</strong>. The next two subsections describe how each is implemented.</p>
+      <p>In real-world computer networks, the network layer fulfills six primary functions:</p>
+      <ol>
+        <li><strong>Logical addressing:</strong> Assigning globally unique, hierarchically structured addresses (such as IPv4 and IPv6 addresses) to all participating devices so they can be identified unambiguously.</li>
+        <li><strong>Routing:</strong> Running distributed routing protocols to discover network topologies, adapt to failed links, and determine the most efficient end-to-end paths across multiple networks.</li>
+        <li><strong>Forwarding:</strong> Relaying packets from a router's input port to the appropriate output port based on lookup operations in its forwarding table.</li>
+        <li><strong>Packet fragmentation and reassembly:</strong> Slicing large packets into smaller pieces when traversing an intermediate link that cannot accommodate the original packet's size, and ensuring the fragments can be reassembled properly at the destination.</li>
+        <li><strong>Error reporting and diagnostics:</strong> Detecting delivery failures and communicating diagnostic feedback to the sender through helper protocols, most notably the Internet Control Message Protocol (ICMP).</li>
+        <li><strong>Quality of Service (QoS) and traffic control:</strong> Providing mechanisms to prioritize sensitive real-time traffic (such as voice and interactive video) over bulk data transfers (such as file downloads).</li>
+      </ol>
+
+      <p>To provide these capabilities to the transport layer above, the network layer can be architected around one of two fundamental operational models: <strong>connectionless service</strong> (datagram networks) or <strong>connection-oriented service</strong> (virtual-circuit networks).</p>
 
       <h3>Datagram networks (connectionless service)</h3>
-      <p>In a datagram network every packet, called a datagram, is treated on its own. Each one carries the full destination address. A router keeps a <strong>forwarding table</strong> that maps destinations (usually address prefixes) to outgoing links, and it looks up each packet separately. Two packets from the same message can therefore take different paths, arrive out of order, or be lost. The network promises <em>best effort</em> and nothing more. If reliability is needed, the transport layer provides it. The Internet’s IP works this way.</p>
+      <p>In a datagram network, communication is completely connectionless. This means that two communicating hosts do not perform any preliminary handshake or establish a reserved path before exchanging data. When a host has data to transmit, it simply packages the data into an independent unit called a <strong>datagram</strong> and injects it into the network.</p>
+      <p>Because intermediate routers do not maintain any prior knowledge or record of an ongoing conversation, every single datagram must carry the complete source and destination logical addresses in its header. When a datagram arrives at an intermediate router, the router inspects the destination IP address, searches its internal <strong>forwarding table</strong> for a matching network address prefix, and transmits the datagram out the designated link toward the next hop.</p>
+      <p>Because routing algorithms update forwarding tables dynamically to reflect changing network traffic and link availability, successive datagrams belonging to the very same message or file transfer can take completely different physical routes through the network. As a result, datagrams can arrive at the destination out of their original sequence, experience fluctuating delays, or occasionally get dropped when buffers overflow.</p>
+      <p>The network layer provides what engineers call a <strong>best-effort delivery</strong> service. The network promises to do its best to deliver every datagram, but it guarantees neither arrival, nor order, nor timing. This deliberate design decision keeps intermediate routers simple, stateless, fast, and remarkably scalable. If an application requires guaranteed reliability and strictly ordered delivery, higher-level protocols—such as the Transmission Control Protocol (TCP) at the transport layer—manage retransmissions and reordering at the communicating endpoints. The global Internet Protocol (IP) is the prime example of a datagram network.</p>
 
       <h3>Virtual-circuit networks (connection-oriented service)</h3>
-      <p>A virtual-circuit network first runs a set-up phase that picks a path and gives it a short circuit number. Each router on the path records an entry for that circuit. Data packets then carry only the circuit number, follow the chosen path in order, and the circuit is torn down at the end. This keeps per-connection state in every router on the path.</p>
+      <p>In contrast to the datagram model, a virtual-circuit network operates on a connection-oriented philosophy inspired by traditional telecommunications. Before a single byte of application data can be sent, the source and destination hosts must establish a formal, end-to-end connection known as a <strong>virtual circuit (VC)</strong>.</p>
+      <p>Operating a virtual-circuit network involves three distinct, sequential phases:</p>
+      <ol>
+        <li><strong>Connection setup:</strong> The sending host initiates communication by transmitting a specialized setup packet into the network. As this packet traverses intermediate switches, a specific physical path is selected, and intermediate routers reserve resources (such as buffer space and link bandwidth). Each router creates a state record in an internal connection table and assigns a short local numerical identifier called a <strong>Virtual Circuit Identifier (VCI)</strong> (or label) for each link along the path.</li>
+        <li><strong>Data transfer:</strong> Once the connection is confirmed, data packets begin flowing. Because the path is already established and recorded in every intermediate router, data packets do not need to carry full global destination IP addresses. Instead, they carry only the small, lightweight Virtual Circuit Identifier. When a router receives a packet, it reads the incoming VCI, looks up the corresponding outgoing interface and new outgoing VCI in its table, replaces the VCI in the packet header, and immediately forwards the packet.</li>
+        <li><strong>Connection teardown:</strong> When the communication session finishes, a teardown signal is sent through the network. Intermediate routers remove their table entries and release the reserved memory and bandwidth back into the shared pool.</li>
+      </ol>
+      <p>Because all packets follow the exact same predetermined path, they are guaranteed to arrive in strictly sequential order. Furthermore, because bandwidth can be reserved during setup, virtual circuits make it straightforward to provide predictable Quality of Service (QoS) guarantees. However, this predictability comes with a major limitation: intermediate routers must maintain active state records for every active connection traversing them. If a single router along a virtual circuit crashes, all virtual circuits crossing that device are instantly severed and must be renegotiated from scratch. Technologies such as Asynchronous Transfer Mode (ATM), X.25, Frame Relay, and modern Multiprotocol Label Switching (MPLS) rely on virtual circuits.</p>
 
-      <h3>Internetworking</h3>
-      <p>The Internet is a collection of separately built networks that differ in many ways: address formats, the largest packet they can carry (the MTU), the protocols they use, and the quality-of-service and security rules they apply. <strong>Internetworking</strong> joins them. Routers sit at the boundaries, and a common network-layer protocol (IP) runs on top of every network, hiding the differences. When a packet is larger than the next network’s MTU, the router splits it into fragments that are reassembled at the destination.</p>
-
-      <h3>Direct and indirect delivery</h3>
-      <p>A sender first asks one question: <em>is the destination on my own network?</em></p>
+      <h3>Internetworking: Unifying heterogeneous networks</h3>
+      <p>The global Internet is not a single, homogeneous network made from identical hardware. Instead, it is an "internetwork"—a massive federation of hundreds of thousands of independent networks owned and operated by universities, corporations, governments, and commercial Internet Service Providers (ISPs). These constituent networks differ drastically in almost every technical dimension:</p>
       <ul>
-        <li><strong>Direct delivery:</strong> the destination is on the same network, so the packet goes straight to that host at the link layer.</li>
-        <li><strong>Indirect delivery:</strong> the destination is on a different network, so the packet is sent to a router (the default gateway), which forwards it hop by hop. Every delivery ends with direct delivery on the last network, from the final router to the destination host.</li>
+        <li><strong>Different physical media:</strong> Signals travel over high-speed glass fiber-optic backbones, copper twisted-pair cables on local Ethernet networks, wireless radio frequencies in Wi-Fi and 4G/5G cellular systems, and long-delay satellite links.</li>
+        <li><strong>Different Maximum Transmission Units (MTUs):</strong> The Maximum Transmission Unit (MTU) defines the largest data payload (measured in bytes) that a specific physical link-layer frame can encapsulate. For example, standard Ethernet enforces an MTU of 1,500 bytes, while certain Wide Area Network (WAN) links or older wireless technologies enforce much smaller MTUs (such as 576 bytes), and data center switches may support "jumbo frames" of up to 9,000 bytes.</li>
+        <li><strong>Different addressing and framing formats:</strong> Local networks use varying physical addressing formats, transmission speeds, and security policies.</li>
       </ul>
 
-      <h3>Tunneling</h3>
-      <p>Sometimes two networks of the same type must communicate across a different type of network in between, for example two IPv6 networks connected through an IPv4-only network. With <strong>tunneling</strong>, the router at the tunnel entrance wraps the entire IPv6 packet as the payload of an IPv4 packet. The IPv4 network forwards it like any other packet. The router at the exit removes the outer header and delivers the original IPv6 packet.</p>
+      <p>The solution that unites this fragmented landscape into a single functional system is <strong>internetworking</strong>. Specialized gateway devices—routers—are placed at the borders where different networks meet. A single, standardized network-layer protocol—the Internet Protocol (IP)—runs on every connected host and router. IP serves as an abstraction layer (often visualized as the narrow "waist" of the Internet protocol hourglass) that hides the physical quirks of underlying hardware from applications above.</p>
+
+      <p>When an IP packet crosses from a network with a large MTU into a network with a smaller MTU, the packet cannot fit inside the next link's frames as a single piece. The router at the boundary must perform <strong>fragmentation</strong>: it divides the original packet's payload into multiple smaller fragments, giving each fragment its own IP header. Special header fields—namely the <em>Identification</em> number, the <em>Fragment Offset</em> (which indicates the position of the data relative to the start of the original datagram in units of 8 bytes), and the <em>More Fragments (MF)</em> flag—enable the destination host to reassemble all the pieces back into the original datagram. Reassembly is deliberately deferred until the packet reaches the ultimate destination host; this design choice frees intermediate routers from having to buffer fragments and accommodates situations where different fragments take different paths through the network.</p>
+
+      <h3>Direct and indirect packet delivery</h3>
+      <p>Whenever a host or router prepares to send an IP packet, it must answer one fundamental routing question: <em>Does the destination host reside on my own local network, or does it reside on a different network across the globe?</em> The answer dictates how the packet is delivered:</p>
+
+      <ul>
+        <li><strong>Direct delivery:</strong> If the destination host is located on the exact same physical Local Area Network (LAN) as the sender, the packet can be delivered directly. The sending device determines the destination host's physical Media Access Control (MAC) address using the Address Resolution Protocol (ARP) in IPv4 (or Neighbor Discovery Protocol [NDP] in IPv6). The sender encapsulates the IP packet into a local link-layer frame addressed directly to the destination MAC address and transmits it across the local medium. No intermediate routing hops are required.</li>
+        <li><strong>Indirect delivery:</strong> If the destination IP address belongs to a different network, direct delivery is physically impossible. The sender must perform indirect delivery: it encapsulates the IP packet into a link-layer frame addressed to the MAC address of its local <strong>default gateway</strong> (the local router interface connecting this network to the rest of the world). The default gateway receives the frame, strips away the link-layer header, inspects the destination IP address, consults its routing table, and forwards the packet out toward the next router along the path.</li>
+      </ul>
+
+      <p>This reveals a universal law of internetworking: every packet journey across the Internet consists of <strong>zero or more indirect delivery hops</strong> between intermediate routers, and concludes with <strong>exactly one direct delivery hop</strong> on the final local network, where the last router hands the packet directly to the destination host.</p>
+
+      <h3>Tunneling: Bridging incompatible networks</h3>
+      <p>Occasionally, two networks running a specific modern or private protocol must communicate across an intermediate transit network that does not understand that protocol. A classic real-world example is connecting two modern Internet Protocol version 6 (IPv6) corporate networks across an older Internet Service Provider transit backbone that only supports Internet Protocol version 4 (IPv4).</p>
+
+      <p>Replacing every router across a massive transit provider is economically impractical. Network engineers resolve this challenge using a technique known as <strong>packet tunneling</strong> (or encapsulation). The concept is directly analogous to postal mail: if you need to send a private envelope through a postal service that only handles a specific standardized package size, you place your entire original envelope inside a larger outer package that meets the courier's requirements.</p>
+
+      <p>In network tunneling, the process works as follows:</p>
+      <ol>
+        <li><strong>Tunnel entrance (Ingress router):</strong> When a native IPv6 packet arrives at the boundary router of the IPv4 network, the router does not alter the IPv6 packet. Instead, it treats the entire IPv6 packet (both its header and data payload) as ordinary data and wraps it inside a brand-new outer IPv4 packet header. The source address of this outer header is the tunnel entry router, and the destination address is the tunnel exit router.</li>
+        <li><strong>Tunnel transit:</strong> Intermediate routers in the transit network inspect only the outer IPv4 header. To them, the packet looks like any standard IPv4 datagram, so they forward it across normal IPv4 links without needing to know that an IPv6 packet is hidden inside.</li>
+        <li><strong>Tunnel exit (Egress router):</strong> When the encapsulated packet reaches the router at the other end of the tunnel, the egress router strips off the outer IPv4 header (decapsulation), recovers the original, unmodified IPv6 packet, and forwards it natively onto the destination IPv6 network.</li>
+      </ol>
+
+      <p>Tunneling is widely utilized across the networking industry: in Virtual Private Networks (VPNs) using Internet Protocol Security (IPsec) to encrypt private corporate traffic across the public Internet, in 6in4 transition tunnels, and in Multiprotocol Label Switching (MPLS) provider networks. However, tunneling introduces costs: the outer header consumes additional bandwidth (header overhead), lowers the usable payload capacity of the packet, and can complicate network troubleshooting because the true payload is concealed from diagnostic tools.</p>
 
       <h2>Working principles and processes</h2>
-      <h3>Store-and-forward at one router</h3>
+
+      <h3>Step-by-step: Store-and-forward packet switching at a router</h3>
+      <p>To see how an intermediate router operates in practice, consider the five steps a router executes whenever a packet arrives on one of its network interface ports:</p>
       <ol>
-        <li>The packet arrives and is received completely on the incoming link.</li>
-        <li>The router checks it for damage (in IPv4, by verifying the header checksum).</li>
-        <li>It looks up the destination in its forwarding table to find the outgoing link.</li>
-        <li>The packet waits in that link’s queue until the link is free.</li>
-        <li>It is transmitted to the next hop.</li>
+        <li><strong>Frame reception and physical decoding:</strong> The incoming bitstream arrives on a physical cable or wireless receiver and is converted into a link-layer frame. The router receives the entire frame and places it into an input memory buffer before taking any action. (This complete reception before forwarding is why the technique is called "store-and-forward").</li>
+        <li><strong>Packet extraction and validation:</strong> The router strips away the link-layer framing to access the IP datagram and verifies its integrity:
+          <ul>
+            <li>In IPv4, it calculates and verifies the <em>Header Checksum</em>. If physical noise or transmission errors corrupted any bits in the header, the damaged packet is discarded immediately.</li>
+            <li>It inspects the <em>Time-to-Live (TTL)</em> counter (called <em>Hop Limit</em> in IPv6). The router decrements this counter by 1. If the value drops to 0, the packet is discarded to prevent infinite routing loops, and the router sends an ICMP "Time Exceeded" error message back to the source host.</li>
+          </ul>
+        </li>
+        <li><strong>Forwarding table lookup:</strong> The router extracts the destination IP address and queries its forwarding table using the principle of <em>Longest Prefix Match (LPM)</em>. It finds the entry whose network prefix matches the largest number of leading bits of the destination address. This lookup reveals the appropriate outgoing interface and the next-hop IP address.</li>
+        <li><strong>Queuing in the output buffer:</strong> The packet is switched across the router's internal high-speed switching fabric to the designated outgoing network interface. If that outgoing link is currently busy transmitting other packets, the new packet waits in the interface's output queue. If the queue is completely full due to heavy traffic (congestion), the router is forced to drop the packet.</li>
+        <li><strong>Re-encapsulation and transmission:</strong> When the outgoing link becomes available, the router updates the IP header (recalculating the header checksum because the TTL was decremented). It resolves the next hop's physical MAC address using the Address Resolution Protocol (ARP), encapsulates the IP datagram into a brand-new link-layer frame, and transmits the physical signals onto the outgoing link.</li>
       </ol>
-      <h3>A datagram crossing the network</h3>
-<pre><code>Packet to 203.0.113.7 arrives at R1
-R1 lookup: 203.0.113.0/24 -> link 2, next hop R3
-R3 lookup: 203.0.113.0/24 -> link 3, next hop R4
-R4: network 203.0.113.0/24 is directly connected, deliver to host</code></pre>
-      <p>No router knows the whole path. Each makes one local decision.</p>
+
+      <h3>A datagram crossing the network: An end-to-end trace</h3>
+      <p>Let us follow a concrete trace of a datagram sent from a user's personal computer to a web server located at IP address <code>203.0.113.7</code>. In this example, the web server resides in the network block <code>203.0.113.0/24</code> (where the <code>/24</code> notation in Classless Inter-Domain Routing [CIDR] indicates a 24-bit network prefix, corresponding to the subnet mask <code>255.255.255.0</code>):</p>
+
+<pre><code>1. Origin (Personal Computer):
+   Destination IP = 203.0.113.7
+   Evaluation: Destination is outside local subnet 192.168.1.0/24.
+   Action: Deliver indirectly -> encapsulate in frame addressed to Default Gateway (Router R1).
+
+2. First Hop (Router R1):
+   Receives frame, extracts packet, verifies checksum, decrements TTL.
+   Forwarding Table Lookup for 203.0.113.7:
+     Match: 203.0.113.0/24 -> Outgoing Interface: Link 2, Next Hop: Router R3
+   Action: Re-encapsulate frame with R3's MAC address and transmit on Link 2.
+
+3. Second Hop (Router R3):
+   Receives frame, extracts packet, verifies checksum, decrements TTL.
+   Forwarding Table Lookup for 203.0.113.7:
+     Match: 203.0.113.0/24 -> Outgoing Interface: Link 3, Next Hop: Router R4
+   Action: Re-encapsulate frame with R4's MAC address and transmit on Link 3.
+
+4. Final Hop (Router R4):
+   Receives frame, extracts packet, verifies checksum, decrements TTL.
+   Forwarding Table Lookup for 203.0.113.7:
+     Match: 203.0.113.0/24 is directly attached to local Interface 1.
+   Action: Resolve 203.0.113.7 to server MAC via ARP; perform Direct Delivery.</code></pre>
+
+      <p>Notice the core beauty of this design: no single router along the journey possessed a master map of the entire Internet. Each router merely performed one localized, autonomous decision based strictly on the destination IP address and its own forwarding table.</p>
 
       <h2>Diagrams and visual explanations</h2>
+
       <figure class="fig">
-        <svg viewBox="0 0 560 190" role="img" aria-label="Host A, router R1, router R2 and host B in a line. A bar above spans A to B for the network layer. Three shorter bars below cover each link for the data link layer.">
+        <svg viewBox="0 0 560 190" role="img" aria-label="Diagram showing Host A connected to Router R1, then Router R2, then Host B. A wide bar spanning from Host A to Host B illustrates end-to-end network layer delivery. Three shorter bars underneath illustrate hop-by-hop data link layer framing for each intermediate link.">
           <g stroke="var(--line)" stroke-width="2"><line x1="70" y1="95" x2="200" y2="95"/><line x1="200" y1="95" x2="360" y2="95"/><line x1="360" y1="95" x2="490" y2="95"/></g>
           <g fill="var(--panel2)" stroke="var(--accent)" stroke-width="1.5"><rect x="40" y="80" width="60" height="30" rx="6"/><rect x="180" y="80" width="40" height="30" rx="6"/><rect x="340" y="80" width="40" height="30" rx="6"/><rect x="460" y="80" width="60" height="30" rx="6"/></g>
           <g fill="var(--text)" font-family="monospace" font-size="12" text-anchor="middle"><text x="70" y="99">Host A</text><text x="200" y="99">R1</text><text x="360" y="99">R2</text><text x="490" y="99">Host B</text></g>
           <rect x="70" y="30" width="420" height="26" rx="6" fill="var(--accent)"/>
-          <text x="280" y="48" font-family="monospace" font-size="12" text-anchor="middle" fill="var(--on-accent)">Network layer: host to host</text>
+          <text x="280" y="48" font-family="monospace" font-size="12" text-anchor="middle" fill="var(--on-accent)">Network layer: End-to-end host-to-host delivery</text>
           <g fill="var(--panel2)" stroke="var(--accent2)" stroke-width="1.5"><rect x="75" y="130" width="120" height="24" rx="6"/><rect x="205" y="130" width="150" height="24" rx="6"/><rect x="365" y="130" width="120" height="24" rx="6"/></g>
-          <g fill="var(--text)" font-family="monospace" font-size="11" text-anchor="middle"><text x="135" y="146">Data link: hop 1</text><text x="280" y="146">Data link: hop 2</text><text x="425" y="146">Data link: hop 3</text></g>
+          <g fill="var(--text)" font-family="monospace" font-size="11" text-anchor="middle"><text x="135" y="146">Data link: Hop 1</text><text x="280" y="146">Data link: Hop 2</text><text x="425" y="146">Data link: Hop 3</text></g>
         </svg>
-        <figcaption>Figure 1. One network-layer journey is made of several data-link hops.</figcaption>
+        <figcaption>Figure 1. The relationship between network layer and data link layer delivery: an end-to-end network layer journey is composed of multiple discrete, hop-by-hop data link frames.</figcaption>
       </figure>
+
+      <p>As illustrated in Figure 1, the IP packet remains the continuous payload throughout the journey from Host A to Host B. In contrast, the data link layer frames are strictly transient: at each hop, the receiving router strips off the old link-layer frame and creates a completely new frame with new source and destination MAC addresses tailored to the next physical medium.</p>
+
       <figure class="fig">
-        <svg viewBox="0 0 560 200" role="img" aria-label="Two IPv6 networks joined through an IPv4 network. The entry router wraps the IPv6 packet in an IPv4 header, and the exit router removes it.">
+        <svg viewBox="0 0 560 200" role="img" aria-label="Diagram showing two IPv6 networks connected across an intermediate IPv4-only network. The entry router encapsulates the IPv6 packet inside an outer IPv4 header, and the exit router decapsulates it back to the original IPv6 packet.">
           <rect x="170" y="30" width="220" height="70" rx="14" fill="var(--panel2)" stroke="var(--line)" stroke-width="1.5"/>
-          <text x="280" y="50" font-family="monospace" font-size="11" text-anchor="middle" fill="var(--muted)">IPv4-only network</text>
+          <text x="280" y="50" font-family="monospace" font-size="11" text-anchor="middle" fill="var(--muted)">Intermediate IPv4-only network</text>
           <line x1="130" y1="75" x2="430" y2="75" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 5"/>
           <g fill="var(--panel2)" stroke="var(--accent)" stroke-width="1.5"><rect x="20" y="60" width="70" height="30" rx="6"/><rect x="100" y="60" width="50" height="30" rx="6"/><rect x="410" y="60" width="50" height="30" rx="6"/><rect x="470" y="60" width="70" height="30" rx="6"/></g>
-          <g fill="var(--text)" font-family="monospace" font-size="11" text-anchor="middle"><text x="55" y="79">IPv6 host</text><text x="125" y="79">Entry</text><text x="435" y="79">Exit</text><text x="505" y="79">IPv6 host</text></g>
-          <text x="280" y="125" font-family="monospace" font-size="11" text-anchor="middle" fill="var(--muted)">Packet inside the tunnel</text>
+          <g fill="var(--text)" font-family="monospace" font-size="11" text-anchor="middle"><text x="55" y="79">IPv6 host</text><text x="125" y="79">Ingress</text><text x="435" y="79">Egress</text><text x="505" y="79">IPv6 host</text></g>
+          <text x="280" y="125" font-family="monospace" font-size="11" text-anchor="middle" fill="var(--muted)">Encapsulated packet inside transit tunnel</text>
           <rect x="190" y="135" width="70" height="36" rx="4" fill="var(--accent2)"/>
           <text x="225" y="157" font-family="monospace" font-size="11" text-anchor="middle" fill="#fff">IPv4 hdr</text>
           <rect x="260" y="135" width="110" height="36" rx="4" fill="var(--accent)"/>
           <text x="315" y="157" font-family="monospace" font-size="11" text-anchor="middle" fill="var(--on-accent)">IPv6 packet</text>
         </svg>
-        <figcaption>Figure 2. Tunneling: the whole IPv6 packet becomes the payload of an IPv4 packet.</figcaption>
+        <figcaption>Figure 2. Packet tunneling: an entire IPv6 packet is encapsulated as the data payload of a standard IPv4 packet to traverse an incompatible intermediate network.</figcaption>
       </figure>
 
+      <p>Figure 2 highlights how tunneling bridges incompatible network boundaries. The intermediate IPv4 routers only see and route the outer IPv4 header. Neither the contents nor the structure of the inner IPv6 packet are modified during transit.</p>
+
       <h2>Practical examples and worked problems</h2>
+
       <details class="worked" open>
-        <summary>Problem 1: store-and-forward delay</summary>
-        <div class="body"><p>A 12,000-bit packet crosses three links, each 1 Mbps, through two routers. Ignore propagation and queuing delay. How long does it take?</p>
-        <p>Each link needs 12,000 / 1,000,000 = 12 ms to transmit the packet. A router must receive the whole packet before sending it on, so the transmissions happen one after another: 3 &times; 12 ms = <strong>36 ms</strong>.</p></div>
+        <summary>Problem 1: Calculating store-and-forward transmission delay</summary>
+        <div class="body">
+          <p><strong>Question:</strong> A packet containing \(L = 12{,}000\text{ bits}\) is transmitted from a source host to a destination host across three physical links (\(N = 3\)) interconnected by two intermediate store-and-forward routers. Each link has a transmission rate (bandwidth) of \(R = 1\text{ Mbps}\) (\(10^6\text{ bits per second}\)). Assuming that propagation delay, queuing delay, and router processing time are all negligible, what is the total time required for the packet to reach the destination?</p>
+          <p><strong>Solution:</strong></p>
+          <ol>
+            <li>First, calculate the transmission delay (\(d_{\text{trans}}\)) required to push the packet onto any single link:
+              \[d_{\text{trans}} = \frac{L}{R} = \frac{12{,}000\text{ bits}}{1{,}000{,}000\text{ bps}} = 0.012\text{ seconds} = 12\text{ ms}\]
+            </li>
+            <li>Because each router operates strictly on the <em>store-and-forward</em> principle, it must completely receive all \(12{,}000\text{ bits}\) of the packet before it can begin transmitting any part of it onto the next link. Consequently, transmissions across successive links cannot overlap for a single packet; they must occur in series.</li>
+            <li>With three links in total, the overall end-to-end transmission delay is:
+              \[D_{\text{total}} = N \times d_{\text{trans}} = 3 \times 12\text{ ms} = \mathbf{36\text{ ms}}\]
+            </li>
+          </ol>
+          <p><em>Key takeaway:</em> A store-and-forward network incurs an additive transmission delay at every intermediate hop. If the routers used cut-through switching (beginning forwarding as soon as the header was parsed), the delay would be significantly lower, but the network would lose the ability to verify checksums or adapt between links with different transmission speeds.</p>
+        </div>
       </details>
+
       <details class="worked">
-        <summary>Problem 2: direct or indirect delivery?</summary>
-        <div class="body"><p>A host at 192.168.1.10 with mask 255.255.255.0 and default gateway 192.168.1.1 sends to (a) 192.168.1.50 and (b) 192.168.2.5.</p>
-        <p>The sender’s network is 192.168.1.0/24. For (a), the destination is in the same network, so delivery is <strong>direct</strong>. For (b), 192.168.2.5 lies in 192.168.2.0/24, a different network, so delivery is <strong>indirect</strong>: the packet goes to the gateway 192.168.1.1.</p></div>
+        <summary>Problem 2: Determining direct versus indirect delivery</summary>
+        <div class="body">
+          <p><strong>Question:</strong> A host computer is configured with an IP address of <code>192.168.1.10</code>, a subnet mask of <code>255.255.255.0</code> (or <code>/24</code> in CIDR prefix notation), and a default gateway of <code>192.168.1.1</code>. Determine whether the host will perform direct or indirect delivery when sending packets to:</p>
+          <ul>
+            <li>(a) Destination IP address: <code>192.168.1.50</code></li>
+            <li>(b) Destination IP address: <code>192.168.2.5</code></li>
+          </ul>
+          <p><strong>Solution:</strong></p>
+          <p>To determine the delivery type, the host performs a bitwise logical AND operation between its own configured subnet mask and both IP addresses to extract their respective network prefix identifiers:</p>
+          <ol>
+            <li><strong>Sender's local network prefix:</strong>
+              <br><code>192.168.1.10 AND 255.255.255.0 = 192.168.1.0/24</code>
+            </li>
+            <li><strong>Evaluation for Destination (a) <code>192.168.1.50</code>:</strong>
+              <br><code>192.168.1.50 AND 255.255.255.0 = 192.168.1.0/24</code>
+              <br>Since the destination's network prefix matches the sender's local network prefix (<code>192.168.1.0/24 == 192.168.1.0/24</code>), both machines reside on the exact same physical network. The host performs <strong>direct delivery</strong>. It uses the Address Resolution Protocol (ARP) to obtain the destination host's MAC address and transmits the frame directly across the local switch.
+            </li>
+            <li><strong>Evaluation for Destination (b) <code>192.168.2.5</code>:</strong>
+              <br><code>192.168.2.5 AND 255.255.255.0 = 192.168.2.0/24</code>
+              <br>Here, the destination prefix (<code>192.168.2.0/24</code>) does not match the sender's local prefix (<code>192.168.1.0/24</code>). The destination is located on an external network. The host performs <strong>indirect delivery</strong>: it encapsulates the IP packet into a frame addressed to the MAC address of its default gateway (<code>192.168.1.1</code>), leaving subsequent routing hops to the router.
+            </li>
+          </ol>
+        </div>
       </details>
+
       <details class="worked">
-        <summary>Problem 3: tunnel overhead</summary>
-        <div class="body"><p>An IPv6 packet of 1,500 bytes enters an IPv4 tunnel that adds a 20-byte outer header. The tunnel links have an MTU of 1,500 bytes.</p>
-        <p>The encapsulated packet is 1,500 + 20 = 1,520 bytes, which is larger than the MTU. It must be fragmented, or the inner packet must be limited to 1,500 &minus; 20 = <strong>1,480 bytes</strong>. This is why tunnels often lower the usable packet size.</p></div>
+        <summary>Problem 3: Calculating tunnel overhead and Maximum Segment Size</summary>
+        <div class="body">
+          <p><strong>Question:</strong> An Internet Protocol version 6 (IPv6) packet with a total size of 1,500 bytes enters an IPv6-over-IPv4 tunnel. The ingress router encapsulates this packet by adding an outer Internet Protocol version 4 (IPv4) header of 20 bytes. The intermediate physical links inside the tunnel have a Maximum Transmission Unit (MTU) of 1,500 bytes. What problem arises, and what is the maximum inner IPv6 packet size that can pass through the tunnel without fragmentation?</p>
+          <p><strong>Solution:</strong></p>
+          <ol>
+            <li>Calculate the total size of the encapsulated packet emerging from the ingress router:
+              \[\text{Total Packet Size} = \text{Inner IPv6 Size} + \text{Outer IPv4 Header} = 1{,}500\text{ bytes} + 20\text{ bytes} = 1{,}520\text{ bytes}\]
+            </li>
+            <li>Because the intermediate transit links enforce a Maximum Transmission Unit (MTU) of 1,500 bytes, a 1,520-byte packet cannot fit inside the link-layer frames. Consequently, the intermediate router must either fragment the outer IPv4 packet (which severely degrades performance and increases packet loss risk) or discard it entirely if the Don't Fragment (DF) flag is set.</li>
+            <li>To prevent fragmentation, the combined packet must not exceed the path MTU of 1,500 bytes:
+              \[\text{Max Inner Packet Size} = \text{Tunnel MTU} - \text{Tunnel Header Overhead} = 1{,}500\text{ bytes} - 20\text{ bytes} = \mathbf{1{,}480\text{ bytes}}\]
+            </li>
+          </ol>
+          <p><em>Practical implication:</em> Whenever tunneling protocols (such as IPsec, GRE, or WireGuard) are deployed, network engineers must lower the Maximum Segment Size (MSS) negotiated by TCP connections to 1,460 bytes or lower to compensate for the outer encapsulation headers.</p>
+        </div>
       </details>
 
       <h2>Real-world applications</h2>
+      <p>The theoretical concepts of the network layer underpin nearly every network infrastructure service we use today:</p>
       <ul>
-        <li><strong>The Internet.</strong> IP is a datagram service, so each packet you send is routed independently.</li>
-        <li><strong>Provider backbones.</strong> Carriers use MPLS, which forwards by short labels along paths set up in advance, much like virtual circuits.</li>
-        <li><strong>VPNs.</strong> A VPN tunnels your private traffic through the public Internet, wrapped inside outer packets.</li>
-        <li><strong>IPv6 transition.</strong> Configured tunnels carry IPv6 across IPv4-only parts of the network.</li>
-        <li><strong>Your home router.</strong> It is your default gateway, so every packet to another network is indirect delivery through it.</li>
+        <li><strong>The global Internet architecture:</strong> The worldwide Internet is the quintessential implementation of a datagram network. Every time you send an email, stream audio, or download code, your data is divided into independent IP datagrams that navigate dynamic paths across multiple commercial Internet Service Providers (ISPs).</li>
+        <li><strong>Multiprotocol Label Switching (MPLS) in telecommunications backbones:</strong> While the public Internet uses datagrams, major telecommunications carriers utilize Multiprotocol Label Switching (MPLS) in their high-capacity core networks. MPLS establishes virtual circuits (called Label Switched Paths [LSPs]), allowing network operators to guarantee bandwidth, enforce predictable Quality of Service (QoS), and reroute traffic around severed fiber lines in milliseconds.</li>
+        <li><strong>Virtual Private Networks (VPNs) and secure remote access:</strong> Technologies such as Internet Protocol Security (IPsec), OpenVPN, and WireGuard use packet tunneling to securely bridge remote employee laptops to corporate intranets. The private corporate packet (containing internal business data and private IP addresses) is fully encrypted and placed inside an outer public IP datagram, allowing secure transit across the untrusted public Internet.</li>
+        <li><strong>IPv6 transition mechanisms (6in4 and Teredo):</strong> Because the world's 32-bit IPv4 addresses have been completely exhausted, network operators are transitioning to 128-bit IPv6. During this multi-decade transition, configured tunnels allow modern IPv6-only enterprise networks to communicate across older transit providers that still only support IPv4.</li>
+        <li><strong>Residential Wi-Fi routers and home gateways:</strong> The compact router in your home acts as your local default gateway. It performs direct delivery for local file sharing and smart home appliances on your home Local Area Network (LAN), and indirect delivery—combined with Network Address Translation (NAT)—for all traffic bound for the wider Internet.</li>
       </ul>
 
       <h2>Advantages, limitations and comparisons</h2>
+      <p>A central insight in computer networking is that every architecture involves conscious engineering trade-offs. The table below compares the two primary network-layer service paradigms:</p>
+
       <div class="table-wrap"><table>
-        <thead><tr><th>Issue</th><th>Datagram</th><th>Virtual circuit</th></tr></thead>
+        <thead><tr><th>Design Dimension</th><th>Datagram Networks (Connectionless Service)</th><th>Virtual-Circuit Networks (Connection-Oriented Service)</th></tr></thead>
         <tbody>
-          <tr><td>Set-up</td><td>None</td><td>Required before data</td></tr>
-          <tr><td>Addressing</td><td>Full destination address in every packet</td><td>Short circuit number in every packet</td></tr>
-          <tr><td>Router state</td><td>Forwarding table only</td><td>Entry for every circuit</td></tr>
-          <tr><td>Router failure</td><td>Packets lost, routes can change</td><td>All circuits through it end</td></tr>
-          <tr><td>Packet order</td><td>May arrive out of order</td><td>Kept in order</td></tr>
-          <tr><td>Congestion and QoS</td><td>Harder to guarantee</td><td>Easier, resources reserved at set-up</td></tr>
+          <tr>
+            <td><strong>Connection Setup</strong></td>
+            <td>None required. Hosts begin transmitting data packets immediately without delay.</td>
+            <td>Mandatory three-way setup phase required to establish the path before user data can flow.</td>
+          </tr>
+          <tr>
+            <td><strong>Packet Addressing Overhead</strong></td>
+            <td>High. Every packet must carry complete global source and destination IP addresses.</td>
+            <td>Low. Packets carry only a short, lightweight Virtual Circuit Identifier (VCI).</td>
+          </tr>
+          <tr>
+            <td><strong>Router State Storage</strong></td>
+            <td>Stateless. Routers maintain only destination network prefixes in their forwarding tables.</td>
+            <td>Stateful. Routers must maintain a dedicated state table entry for every active connection.</td>
+          </tr>
+          <tr>
+            <td><strong>Resilience to Router Failure</strong></td>
+            <td>Exceptional. If an intermediate router fails, routing algorithms recalculate paths and subsequent datagrams bypass the failure automatically.</td>
+            <td>Vulnerable. If an intermediate router crashes, all virtual circuits traversing that router terminate immediately and must be rebuilt.</td>
+          </tr>
+          <tr>
+            <td><strong>Packet Sequencing and Ordering</strong></td>
+            <td>No guarantee. Packets can arrive out of order, be duplicated, or be lost during congestion.</td>
+            <td>Guaranteed. All packets follow the identical physical path and arrive in strict sequential order.</td>
+          </tr>
+          <tr>
+            <td><strong>Quality of Service (QoS) Guarantees</strong></td>
+            <td>Challenging. Operates primarily on a "best-effort" model; providing strict latency or bandwidth guarantees requires complex queue scheduling.</td>
+            <td>Straightforward. Bandwidth, buffers, and maximum delay can be reserved during the initial connection setup phase.</td>
+          </tr>
+          <tr>
+            <td><strong>Primary Example</strong></td>
+            <td>The Internet Protocol (IPv4 and IPv6).</td>
+            <td>Asynchronous Transfer Mode (ATM), X.25, and MPLS core backbones.</td>
+          </tr>
         </tbody>
       </table></div>
-      <p>Tunneling lets networks interconnect without changing the networks in between, but it adds header overhead, lowers the usable packet size, and makes troubleshooting harder because the real packet is hidden inside another.</p>
+
+      <p>The historic triumph of the Internet's datagram architecture stems from the <strong>end-to-end principle</strong>. By keeping intermediate routers simple, stateless, and focused exclusively on high-speed forwarding, the network became extraordinarily resilient against hardware failures and dramatically cheaper to build and scale. Higher-level responsibilities, such as error recovery and ordered sequencing, were delegated to the intelligent end systems running protocols like TCP at the transport layer.</p>
 
       <h2>Key takeaways</h2>
       <div class="takeaways"><ul>
-        <li>The network layer delivers packets host to host across many networks, using logical addresses.</li>
-        <li>Routers use store-and-forward switching and decide hop by hop.</li>
-        <li>Datagram service routes each packet independently, while virtual circuits set up a path first.</li>
-        <li>Internetworking joins different networks through routers and a common protocol, IP.</li>
-        <li>A sender uses direct delivery on its own network and indirect delivery through a router otherwise.</li>
-        <li>Tunneling carries one protocol’s packets inside another’s.</li>
+        <li>The network layer is responsible for end-to-end, host-to-host packet delivery across multiple interconnected networks, bridging local hardware links with application processes.</li>
+        <li>Routers operate via store-and-forward packet switching, buffering complete incoming packets to verify header integrity and decrement Time-to-Live (TTL) before consulting forwarding tables.</li>
+        <li>Datagram networks offer connectionless, best-effort delivery where packets are routed independently, whereas virtual-circuit networks reserve a path and resources upfront.</li>
+        <li>Internetworking bridges heterogeneous physical media and varying Maximum Transmission Units (MTUs) through routers and a unifying protocol: the Internet Protocol (IP).</li>
+        <li>A sender performs direct delivery when the destination matches its own local subnet mask, and indirect delivery through a default gateway router otherwise.</li>
+        <li>Tunneling encapsulates one protocol's packet inside another protocol's header, enabling communication across incompatible intermediate backbones and powering Virtual Private Networks (VPNs).</li>
       </ul></div>
 
       <h2>Check your understanding</h2>
       <section class="quiz" data-answer="a" aria-labelledby="q1">
         <h3 id="q1">Question 1</h3>
-        <p class="q">A host at 10.0.0.5/24 sends a packet to 10.0.0.77. What kind of delivery is used?</p>
-        <button class="opt" type="button" data-opt="a">Direct delivery</button>
-        <button class="opt" type="button" data-opt="b">Indirect delivery through the default gateway</button>
-        <button class="opt" type="button" data-opt="c">The packet is dropped</button>
-        <p class="explain" aria-live="polite" hidden>Both addresses are in 10.0.0.0/24, so the destination is on the sender’s own network and the packet is delivered directly.</p>
+        <p class="q">A host configured with IP address <code>10.0.0.5/24</code> prepares to send an IP packet to destination host <code>10.0.0.77</code>. Which type of delivery will the host perform?</p>
+        <button class="opt" type="button" data-opt="a">Direct delivery across the local network link</button>
+        <button class="opt" type="button" data-opt="b">Indirect delivery through the default gateway router</button>
+        <button class="opt" type="button" data-opt="c">The packet is dropped because the addresses belong to different subnets</button>
+        <p class="explain" aria-live="polite" hidden>Correct! The <code>/24</code> prefix indicates a subnet mask of <code>255.255.255.0</code>. Applying this mask to both <code>10.0.0.5</code> and <code>10.0.0.77</code> yields the identical network identifier of <code>10.0.0.0/24</code>. Because both hosts reside on the same local physical network, the packet is delivered directly using the destination's MAC address via the Address Resolution Protocol (ARP), without involving a router.</p>
       </section>
+
       <section class="quiz" data-answer="b" aria-labelledby="q2">
         <h3 id="q2">Question 2</h3>
-        <p class="q">Which statement describes a datagram network?</p>
-        <button class="opt" type="button" data-opt="a">Routers keep a table entry for every connection</button>
-        <button class="opt" type="button" data-opt="b">Each packet carries the destination address and is forwarded independently</button>
-        <button class="opt" type="button" data-opt="c">Packets always arrive in the order they were sent</button>
-        <p class="explain" aria-live="polite" hidden>Datagram routers keep only a forwarding table and treat every packet separately, so packets can take different paths and arrive out of order.</p>
+        <p class="q">Which of the following statements accurately characterizes a connectionless datagram network (such as the Internet Protocol)?</p>
+        <button class="opt" type="button" data-opt="a">Intermediate routers maintain active connection records for every user session</button>
+        <button class="opt" type="button" data-opt="b">Each packet carries the full destination IP address and is forwarded independently</button>
+        <button class="opt" type="button" data-opt="c">All packets belonging to a stream are guaranteed to arrive in their original order</button>
+        <p class="explain" aria-live="polite" hidden>Correct! In a datagram network, no connection setup occurs and routers maintain no per-connection state. Each datagram independently carries the full source and destination IP addresses. As network conditions fluctuate, routers make independent forwarding decisions for each packet, meaning datagrams can take different paths and may arrive out of order.</p>
       </section>
 
       <h2>References and further reading</h2>
       <ul>
-        <li>A. S. Tanenbaum and D. J. Wetherall, <em>Computer Networks</em>, chapter on the network layer.</li>
-        <li>B. A. Forouzan, <em>Data Communications and Networking</em>, chapters on network-layer delivery and internetworking.</li>
-        <li>RFC 791, Internet Protocol; RFC 1812, Requirements for IP Version 4 Routers.</li>
-        <li>RFC 4213, Basic Transition Mechanisms for IPv6 Hosts and Routers (configured tunnels).</li>
+        <li>Andrew S. Tanenbaum and David J. Wetherall, <em>Computer Networks</em> (5th/6th Edition), Pearson — Chapters covering network layer design issues, packet switching, and internetworking.</li>
+        <li>Behrouz A. Forouzan, <em>Data Communications and Networking</em> (5th Edition), McGraw-Hill — Chapters on network-layer delivery, forwarding, and direct vs. indirect routing.</li>
+        <li>James F. Kurose and Keith W. Ross, <em>Computer Networking: A Top-Down Approach</em> (8th Edition), Pearson — Chapter 4: The Network Layer: Data Plane, and Chapter 5: The Network Layer: Control Plane.</li>
+        <li>RFC 791: <em>Internet Protocol (IP)</em>, Internet Engineering Task Force (IETF) Request for Comments (RFC), September 1981. (The foundational standard defining IP datagram formats, addressing, and fragmentation).</li>
+        <li>RFC 1812: <em>Requirements for IP Version 4 Routers</em>, IETF RFC, June 1995. (Standard defining store-and-forward behavior, header validation, TTL decrementing, and ICMP messaging).</li>
+        <li>RFC 4213: <em>Basic Transition Mechanisms for IPv6 Hosts and Routers</em>, IETF RFC, October 2005. (Standard governing dual-stack operation and configured IPv6-over-IPv4 packet tunneling).</li>
       </ul>
 
       <nav id="pager" class="pager" aria-label="Article navigation"></nav>

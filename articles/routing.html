@@ -4,20 +4,330 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Routing algorithms and techniques | Network Layer Explained</title>
+  <meta name="description" content="Optimality principle, Dijkstra, flooding, distance vector, link state, path vector, RIP, OSPF, BGP and the count-to-infinity problem, with interactive demos and real message bytes.">
   <script>try{var t=localStorage.getItem('nl-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
   <link rel="stylesheet" href="../css/style.css">
   <script src="../js/script.js" defer></script>
+  <script src="../js/demos.js" defer></script>
 </head>
-<body data-root="..">
+<body data-root=".." data-article="routing">
   <div id="site-header"></div>
-  <main class="wrap stub">
+  <header class="wrap article-head">
     <h1>Routing algorithms and techniques</h1>
-    <p>This article is written in a later phase. The page, navigation, theme toggle and search already work here.</p>
-    <p><a href="../index.html#articles">Back to all articles</a></p>
-  </main>
+    <p class="meta">Article 2, Routing, 25 min read</p>
+  </header>
+
+  <div class="wrap article-layout">
+    <aside class="toc" aria-label="On this page"><h2>On this page</h2><ol></ol></aside>
+
+    <article class="prose">
+      <h2>Introduction</h2>
+      <p>Picture a router with five links and a packet addressed to a host on the other side of the world. The router has to decide which of its five links the packet should leave on. It cannot ask anyone, and it cannot see the whole Internet. It can only look at its own table and choose. Everything in this article is about how that table gets its entries, and how the entries stay correct when links fail and traffic changes.</p>
+      <p>We start with one simple principle about shortest paths, then build up to the three families of routing used on the real Internet: <strong>distance vector</strong>, <strong>link state</strong> and <strong>path vector</strong>. Along the way you will step through the algorithms yourself, see the actual bytes that real routing messages are made of, and meet the classic failure that every distance vector protocol has to guard against.</p>
+
+      <h2>Fundamental concepts</h2>
+      <p><strong>Routing</strong> is the work of building and maintaining the routing table. <strong>Forwarding</strong> is the work of using that table to move one packet to its next hop. Routing happens in the background every few seconds or minutes. Forwarding happens for every single packet, in microseconds. Article 3 covers forwarding in detail.</p>
+      <p>A good routing method should be correct, simple, robust when links or routers fail, stable (it settles on an answer instead of changing its mind constantly), fair, and efficient. These goals often pull against each other, which is why several different methods exist.</p>
+
+      <h3>Static and dynamic routing</h3>
+      <p>With <strong>static routing</strong> (also called non-adaptive routing), an administrator types each route into each router by hand. It costs nothing while running, uses no network bandwidth for routing messages, and behaves predictably. Its weakness is that it cannot react: if a link fails, packets keep being sent into it until a person notices and edits the table. Static routing is a good fit for small networks and for a single default route that points toward an Internet Service Provider.</p>
+      <p>With <strong>dynamic routing</strong> (adaptive routing), routers exchange information using a routing protocol and recompute their tables automatically. The network heals itself, but the routers spend memory, processing time and bandwidth to do it.</p>
+
+      <h3>Autonomous systems, intradomain and interdomain routing</h3>
+      <p>An <strong>Autonomous System</strong> (AS) is a group of networks and routers controlled by a single administration, such as a university, a company or an Internet Service Provider. Routing <em>inside</em> one autonomous system is called <strong>intradomain routing</strong>, and routing <em>between</em> autonomous systems is called <strong>interdomain routing</strong>. Splitting the problem this way keeps routing tables small and lets each organisation choose its own internal rules without telling the world.</p>
+      <div class="callout"><p><strong>Key idea.</strong> The routing protocols fall into three families. Intradomain protocols use <em>distance vector</em> (Routing Information Protocol, RIP) or <em>link state</em> (Open Shortest Path First, OSPF). Interdomain routing uses <em>path vector</em> (Border Gateway Protocol, BGP).</p></div>
+
+      <h3>Abbreviations used in this article</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Abbreviation</th><th>Full form</th></tr></thead>
+        <tbody>
+          <tr><td>AS</td><td>Autonomous System</td></tr>
+          <tr><td>BGP, E-BGP, I-BGP</td><td>Border Gateway Protocol, External BGP, Internal BGP</td></tr>
+          <tr><td>IGP, EGP</td><td>Interior Gateway Protocol, Exterior Gateway Protocol</td></tr>
+          <tr><td>IP</td><td>Internet Protocol</td></tr>
+          <tr><td>ISP</td><td>Internet Service Provider</td></tr>
+          <tr><td>Mbps</td><td>Megabits per second</td></tr>
+          <tr><td>OSPF</td><td>Open Shortest Path First</td></tr>
+          <tr><td>RFC</td><td>Request for Comments (the documents that define Internet standards)</td></tr>
+          <tr><td>RIP</td><td>Routing Information Protocol</td></tr>
+          <tr><td>TCP</td><td>Transmission Control Protocol</td></tr>
+          <tr><td>UDP</td><td>User Datagram Protocol</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2>Detailed explanations</h2>
+      <h3>The optimality principle and the sink tree</h3>
+      <p>The optimality principle says that if router J lies on the best path from router I to router K, then the best path from J to K follows exactly the same route. It sounds obvious, but it has a powerful consequence. If you collect the best path from every router to one particular destination, the paths merge into a <strong>tree</strong> rooted at that destination, called the <strong>sink tree</strong> (or <em>shortest path tree</em>). A tree has no loops, so following the best paths can never send a packet round in circles.</p>
+      <p>Every algorithm in this article is really a method for discovering the sink tree, or a router&rsquo;s own view of it, using only local information.</p>
+
+      <h3>Shortest path routing: Dijkstra&rsquo;s algorithm</h3>
+      <p>If a router has a complete map of the network with a cost on every link, it can compute the cheapest path to every other router using <strong>Dijkstra&rsquo;s algorithm</strong>. The algorithm keeps two lists. The <em>tentative list</em> holds nodes whose cheapest cost found so far might still improve. The <em>permanent list</em> holds nodes whose cheapest cost is final.</p>
+      <p>At each step it takes the node with the lowest cost from the tentative list and makes it permanent. Then it looks at that node&rsquo;s neighbours. If a neighbour is new, it joins the tentative list. If it is already there but the new route is cheaper, the cost is replaced. The algorithm stops when the tentative list is empty. You can run it step by step in the first demonstration below.</p>
+
+      <h3>Flooding</h3>
+      <p>Flooding is the simplest method of all. A router copies every incoming packet onto every link except the one it arrived on. It needs no map and no table, it always finds the shortest path (because it tries every path at once), and it keeps working even when much of the network is destroyed.</p>
+      <p>The price is an enormous number of duplicates. Two controls keep it manageable. A <strong>hop counter</strong> in the packet header is reduced at every router and the packet is discarded when it reaches zero. Alternatively, <strong>sequence numbers</strong> let each router remember which packets it has already forwarded and ignore repeats. Flooding is used to spread link state information (described below), and in military and wireless networks where robustness matters more than efficiency.</p>
+
+      <h3>Distance vector routing</h3>
+      <p>In distance vector routing, each router keeps a table with one row per destination, showing the best known <strong>cost</strong> and the <strong>next router</strong> to use. At the start, a router knows only itself (cost 0) and its directly connected neighbours (the cost of the link). Every other destination is marked as infinite.</p>
+      <p>Each router then shares its whole table with its immediate neighbours, and only with them. This happens periodically, and also immediately whenever something changes. When a table arrives from neighbour N, the receiving router adds the cost of the link to N to every cost in the table, and compares the results with its own entries. If the route through N is cheaper, or the destination was unknown, the router replaces its entry and records N as the next router. This is the <strong>Bellman-Ford</strong> method. Over several rounds of exchange, good routes spread through the whole network.</p>
+
+      <h3>Two-node and three-node instability</h3>
+      <p>Distance vector has a serious weakness: good news travels fast, but bad news travels slowly. Imagine a network X connected to router A, which is connected to router B. B reaches X through A. Now the link between X and A breaks. A immediately knows X is unreachable, but before A can tell B, B&rsquo;s regular update arrives, saying B can reach X at a small cost. A believes it, and adds the cost of the A-to-B link, concluding that X is reachable through B. In reality B&rsquo;s route goes through A. The two routers now pass the route back and forth, each raising the cost, in a loop that stops only when the cost reaches the protocol&rsquo;s value for infinity. This is called <strong>two-node instability</strong>. The same thing can happen around a loop of three routers, called <strong>three-node instability</strong>. You can watch it happen in the second demonstration below.</p>
+      <p>Several remedies exist. <strong>Defining infinity</strong> as a small number (16 in RIP) means the counting stops quickly. <strong>Split horizon</strong> says a router never sends a route back out of the interface it learned it from. In the example, B would not tell A about X, because B learned X from A. <strong>Poison reverse</strong> is a stronger version: B does tell A about X, but with the cost set to infinity, so A is told clearly that B has no independent route. <strong>Triggered updates</strong> make routers announce bad news immediately instead of waiting for the next periodic update. Split horizon fixes two-node instability but not every loop through three or more routers, which is why these techniques are combined.</p>
+
+      <h3>Link state routing</h3>
+      <p>Link state routing takes the opposite approach to distance vector. Instead of sharing its table, each router shares <em>what it knows first-hand</em>: the state of its own links. Every router then holds a complete picture of the network and computes its own routes from it.</p>
+      <p>The process has five steps. First, each router discovers its neighbours by sending small greeting packets. Second, it measures the cost of the link to each neighbour. Third, it builds a <strong>link state packet</strong> listing its neighbours and those costs. Fourth, it floods that packet to every router in the network, and every router does the same. Fifth, each router now has the same map, runs Dijkstra&rsquo;s algorithm with itself as the root, and builds its shortest path tree and routing table. Because every router works from the same map, loops are far less likely, and the network reacts to a failure as soon as the new link state packet has been flooded.</p>
+
+      <h3>Path vector routing</h3>
+      <p>Between autonomous systems, the cheapest path is often not the one that is wanted. Business agreements decide who may carry whose traffic, and organisations do not want to share their internal maps. Path vector routing solves this. For every destination, a router keeps not a cost but the <strong>list of autonomous systems</strong> that the path will cross. When it passes a route on, it adds its own AS number at the front of the list.</p>
+      <p>This gives loop prevention for free. If a router receives a path that already contains its own AS number, it ignores the announcement, because accepting it would create a loop. And since the receiver sees which systems are on the path, it can apply policy: for example, refuse any path through a competitor, or prefer a cheaper provider.</p>
+
+      <h3>Why routing protocols are needed</h3>
+      <p>Imagine a company with 50 routers and 200 networks. With static routing, an administrator would type every route into every router, and when a link failed, someone would have to find the fault and edit tables by hand while users waited. A routing protocol automates all of this. Routers find their neighbours, share what they can reach, choose the best path, and switch to an alternative when a link dies.</p>
+      <p>Protocols are grouped by where they run. An <strong>Interior Gateway Protocol</strong> (IGP), such as RIP or OSPF, works inside one autonomous system. An <strong>Exterior Gateway Protocol</strong> (EGP), in practice BGP, works between autonomous systems.</p>
+
+      <h3>RIP: the Routing Information Protocol</h3>
+      <p><strong>What it is.</strong> RIP is a distance vector protocol for use inside an autonomous system. Its cost, called the <em>hop count</em>, is the number of networks a packet must cross to reach the destination, where a directly connected network counts as 1. A hop count of 16 means unreachable, so RIP only suits networks no more than 15 hops across. RIP has two message types, <em>request</em> and <em>response</em>. Routers send a response containing their routing table to their neighbours every 30 seconds, using User Datagram Protocol (UDP) port 520, and they discard a route that has not been refreshed for about 180 seconds. RIP version 2 includes subnet masks, so it works with classless addressing, and sends its updates to the multicast address 224.0.0.9.</p>
+      <p><strong>Why it exists.</strong> RIP is very simple. It needs almost no configuration, uses little memory, and is easy to understand and to debug. For a small network, that is exactly what is wanted.</p>
+      <p><strong>Example.</strong> A small office has three routers in a row: R1, R2 and R3. R1&rsquo;s own network is 10.0.1.0/24, R2&rsquo;s is 10.0.2.0/24 and R3&rsquo;s is 10.0.3.0/24. (The /24 means the first 24 bits of the address identify the network.) Once RIP has settled, R1 lists 10.0.1.0/24 at 1 hop (directly connected), 10.0.2.0/24 at 2 hops through R2, and 10.0.3.0/24 at 3 hops through R2. If R3 is switched off, R2 stops hearing from it, and after the 180-second timeout R2 removes the route to 10.0.3.0/24, and R1 follows at its next update.</p>
+      <p><strong>Weaknesses.</strong> The 15-hop limit, slow convergence, the count-to-infinity problem, and a cost that ignores how fast each link is.</p>
+
+      <h3>OSPF: Open Shortest Path First</h3>
+      <p><strong>What it is.</strong> OSPF is a link state protocol for use inside an autonomous system. Every router builds a map of its area from link state information and runs Dijkstra&rsquo;s algorithm on it. The cost of a link is configurable and is usually derived from its bandwidth, so faster links cost less. OSPF messages are carried directly inside Internet Protocol (IP) packets, not inside UDP or TCP. Routers find neighbours with <em>Hello</em> packets, typically every 10 seconds, sent to the multicast address 224.0.0.5. The five packet types are Hello, Database Description, Link State Request, Link State Update and Link State Acknowledgment.</p>
+      <p><strong>Why it exists.</strong> RIP could not cope with large networks: its 15-hop limit, slow convergence and indifference to link speed were all serious problems. OSPF scales by dividing an autonomous system into <strong>areas</strong>. Every area connects to a special central area, the <strong>backbone</strong> (area 0). A change inside one area is flooded only inside that area, so the rest of the network is spared.</p>
+      <p><strong>Areas and router roles.</strong> A <em>backbone router</em> sits in area 0. An <em>area border router</em> connects an area to the backbone and summarises that area for the others. An <em>autonomous system boundary router</em> connects the whole autonomous system to other autonomous systems.</p>
+      <p><strong>Link types.</strong> OSPF describes the network as a graph and recognises four kinds of link. A <em>point-to-point</em> link joins exactly two routers. A <em>transient</em> link is a shared network, such as an Ethernet segment with several routers on it; to avoid every router being linked to every other, one router is elected as the <em>designated router</em> and represents the network. A <em>stub</em> link is a dead end, a network attached to only one router. A <em>virtual</em> link is one an administrator creates to repair the backbone when a link breaks, using a longer path through other routers.</p>
+      <p><strong>Weaknesses.</strong> OSPF needs more memory and processing power than RIP, and more planning (areas, router identifiers).</p>
+
+      <h3>BGP: the Border Gateway Protocol</h3>
+      <p><strong>What it is.</strong> BGP (version 4 is in use today) is the path vector protocol that connects autonomous systems into the Internet. Two BGP routers form a session over a Transmission Control Protocol (TCP) connection on port 179 and exchange announcements, each stating that an address block can be reached through a given list of autonomous systems. A session between routers in different autonomous systems is an <strong>External BGP</strong> (E-BGP) session. A session between routers in the same autonomous system is an <strong>Internal BGP</strong> (I-BGP) session, used to carry what was learned from outside to every router inside. BGP has four message types: Open, Update, Keepalive and Notification.</p>
+      <p><strong>Why it exists.</strong> The Internet is thousands of independent networks. They must tell each other which addresses they can reach, but they do not want to reveal their internal maps, and they want to apply business rules, such as preferring a cheaper provider or refusing to carry a competitor&rsquo;s traffic. Distance alone cannot express that, so BGP chooses routes by <em>policy</em> first, and uses the shortest AS path to break ties.</p>
+      <p><strong>Example.</strong> A company (AS 64498) owns the address block 203.0.113.0/24 and buys service from an ISP (AS 64497). The company announces the block to the ISP with the path 64498. The ISP puts its own number in front and announces it to a larger provider (AS 64496) with the path 64497 64498. The provider now knows how to reach the company (Figure 2). Any BGP router that sees its own AS number inside a path ignores the announcement, so announcements cannot loop.</p>
+      <p><strong>Weaknesses.</strong> BGP is complex to configure, can converge slowly, and largely trusts what its neighbours announce, so a mistaken or false announcement can misdirect traffic.</p>
+
+      <h3>Choosing between them</h3>
+      <div class="table-wrap"><table>
+        <thead><tr><th></th><th>RIP</th><th>OSPF</th><th>BGP</th></tr></thead>
+        <tbody>
+          <tr><td>Family</td><td>Distance vector</td><td>Link state</td><td>Path vector</td></tr>
+          <tr><td>Runs</td><td>Inside an AS</td><td>Inside an AS</td><td>Between ASes</td></tr>
+          <tr><td>Cost</td><td>Hop count, 15 at most</td><td>Configurable, from bandwidth</td><td>Policy first, then AS path length</td></tr>
+          <tr><td>Carried by</td><td>UDP, port 520</td><td>Directly in IP</td><td>TCP, port 179</td></tr>
+          <tr><td>Who is told</td><td>Neighbours only</td><td>Every router in the area</td><td>Neighbouring ASes</td></tr>
+          <tr><td>Loop handling</td><td>Infinity of 16, split horizon</td><td>Same map everywhere</td><td>Reject paths containing own AS</td></tr>
+          <tr><td>Best for</td><td>Small, simple networks and labs</td><td>Medium and large enterprise and ISP networks</td><td>Connecting ISPs and large organisations</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2>Working principles and processes</h2>
+      <h3>Dijkstra&rsquo;s algorithm</h3>
+      <ol>
+        <li>Set the root to the local node and place it on the tentative list with cost 0.</li>
+        <li>If the tentative list is empty, stop.</li>
+        <li>Move the tentative node with the lowest cost to the permanent list.</li>
+        <li>For each neighbour of that node that is not yet permanent, add it to the tentative list with cost (node cost + link cost). If it is already tentative with a higher cost, replace that cost and record the new route.</li>
+        <li>Go back to step 2. When finished, follow the recorded routes back from each node to find its next router.</li>
+      </ol>
+      <h3>One distance vector update</h3>
+      <ol>
+        <li>A table arrives from a neighbour.</li>
+        <li>Add the cost of the link to that neighbour to every cost in the table.</li>
+        <li>For each destination, if the new cost is lower than the current entry, or the destination is new, replace the entry and set the next router to that neighbour.</li>
+        <li>If any entry changed, send the updated table to the neighbours.</li>
+      </ol>
+
+      <h2>Diagrams and visual explanations</h2>
+      <section class="lab" aria-labelledby="lab1">
+        <h3 id="lab1">Try it: Dijkstra&rsquo;s algorithm, step by step</h3>
+        <p>This is the five-router network from the lecture, and the root is router A. Press <em>Next step</em> to move one node at a time from the tentative list to the permanent list. Highlighted lines show the shortest path tree as it grows.</p>
+        <div id="dijkstra-demo"></div>
+        <noscript><p>Turn on JavaScript to use this demonstration.</p></noscript>
+      </section>
+
+      <section class="lab" aria-labelledby="lab2">
+        <h3 id="lab2">Try it: two-node instability</h3>
+        <p>Network X is attached to router A, and A is linked to B (the link A to B costs 4, and X to A costs 2). Step through what happens when the link between X and A fails. Then turn on split horizon and run it again.</p>
+        <div id="cti-demo"></div>
+        <noscript><p>Turn on JavaScript to use this demonstration.</p></noscript>
+      </section>
+
+      <figure class="fig">
+        <svg viewBox="0 0 560 250" role="img" aria-label="An autonomous system divided into areas. Area 1 and Area 2 each connect to Area 0, the backbone, through an area border router. An autonomous system boundary router in the backbone leads to other autonomous systems.">
+          <rect x="10" y="10" width="540" height="230" rx="12" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <rect x="30" y="25" width="200" height="75" rx="8" fill="var(--panel2)" stroke="var(--accent2)" stroke-width="1.5"/>
+          <rect x="330" y="25" width="200" height="75" rx="8" fill="var(--panel2)" stroke="var(--accent2)" stroke-width="1.5"/>
+          <rect x="30" y="130" width="500" height="85" rx="8" fill="var(--panel2)" stroke="var(--accent)" stroke-width="2"/>
+          <g fill="var(--muted)" font-family="monospace" font-size="11"><text x="40" y="42">Area 1</text><text x="340" y="42">Area 2</text><text x="40" y="147">Area 0 (backbone)</text><text x="20" y="232">Autonomous system</text></g>
+          <g stroke="var(--line)" stroke-width="2"><line x1="75" y1="65" x2="130" y2="65"/><line x1="130" y1="65" x2="130" y2="130"/><line x1="380" y1="65" x2="430" y2="65"/><line x1="430" y1="65" x2="430" y2="130"/><line x1="70" y1="180" x2="500" y2="180"/></g>
+          <g fill="var(--accent)" stroke="var(--bg)" stroke-width="2"><circle cx="130" cy="115" r="9"/><circle cx="430" cy="115" r="9"/></g>
+          <g fill="var(--accent2)" stroke="var(--bg)" stroke-width="2"><circle cx="250" cy="180" r="9"/><circle cx="500" cy="180" r="9"/></g>
+          <g fill="var(--text)" font-family="monospace" font-size="10" text-anchor="middle"><text x="130" y="100" >area border</text><text x="430" y="100">area border</text><text x="250" y="205">backbone router</text><text x="500" y="205">boundary router</text></g>
+          <text x="545" y="165" font-family="monospace" font-size="10" text-anchor="end" fill="var(--muted)">to other ASes</text>
+        </svg>
+        <figcaption>Figure 1. OSPF areas. Every area joins the backbone through an area border router, and the autonomous system boundary router connects to other autonomous systems.</figcaption>
+      </figure>
+
+      <figure class="fig">
+        <svg viewBox="0 0 560 150" role="img" aria-label="Three autonomous systems in a row: a company AS 64498, an ISP AS 64497 and a provider AS 64496. The company announces 203.0.113.0/24 with path 64498 to the ISP, and the ISP passes it to the provider with path 64497 64498.">
+          <g fill="var(--panel2)" stroke="var(--accent)" stroke-width="1.5"><rect x="15" y="50" width="120" height="40" rx="8"/><rect x="220" y="50" width="120" height="40" rx="8"/><rect x="425" y="50" width="120" height="40" rx="8"/></g>
+          <g fill="var(--text)" font-family="monospace" font-size="12" text-anchor="middle"><text x="75" y="75">AS 64498</text><text x="280" y="75">AS 64497</text><text x="485" y="75">AS 64496</text></g>
+          <g fill="var(--muted)" font-family="monospace" font-size="11" text-anchor="middle"><text x="75" y="108">Company</text><text x="280" y="108">ISP</text><text x="485" y="108">Provider</text></g>
+          <g stroke="var(--accent)" stroke-width="2"><line x1="137" y1="70" x2="216" y2="70"/><line x1="342" y1="70" x2="421" y2="70"/></g>
+          <g fill="var(--accent)"><polygon points="218,70 208,65 208,75"/><polygon points="423,70 413,65 413,75"/></g>
+          <g fill="var(--text)" font-family="monospace" font-size="10" text-anchor="middle"><text x="177" y="38">203.0.113.0/24</text><text x="177" y="50">path: 64498</text><text x="382" y="38">203.0.113.0/24</text><text x="382" y="50">path: 64497 64498</text></g>
+        </svg>
+        <figcaption>Figure 2. A BGP announcement travels left to right, and each autonomous system adds its own number at the front. Data packets for the block flow the opposite way.</figcaption>
+      </figure>
+
+      <h2>Practical examples and worked problems</h2>
+      <p>The first three problems use the same network as the lecture: routers A to E, with link costs A&ndash;B 5, A&ndash;C 2, A&ndash;D 3, B&ndash;C 4, B&ndash;E 3 and C&ndash;E 4.</p>
+
+      <details class="worked" open>
+        <summary>Problem 1: the routing table for A (Dijkstra)</summary>
+        <div class="body"><p>Run the demonstration above to the last step and you get this table. The order in which the nodes become permanent is A, C, D, B, E.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Node</th><th>Cost</th><th>Next router</th></tr></thead>
+          <tbody><tr><td>A</td><td>0</td><td>&mdash;</td></tr><tr><td>B</td><td>5</td><td>&mdash;</td></tr><tr><td>C</td><td>2</td><td>&mdash;</td></tr><tr><td>D</td><td>3</td><td>&mdash;</td></tr><tr><td>E</td><td>6</td><td>C</td></tr></tbody>
+        </table></div>
+        <p>A dash means the destination is directly connected, so no other router is needed. Two results are worth understanding. B costs 5 through the direct link, because going through C would cost 2 + 4 = 6. E costs 6 through C (2 + 4), because going through B would cost 5 + 3 = 8.</p></div>
+      </details>
+
+      <details class="worked">
+        <summary>Problem 2: distance vector tables and an update at A</summary>
+        <div class="body"><p>At the start, A knows only its neighbours: A 0, B 5, C 2, D 3, E unknown (infinite). C&rsquo;s initial table is A 2, B 4, C 0, D infinite, E 4. When C&rsquo;s table reaches A, A adds the cost of the A&ndash;C link (2) to every entry: A 4, B 6, C 2, D infinite, E 6. Comparing with its own table, A keeps B at 5 (5 is less than 6) and D at 3, but E was unknown, so A records <strong>E at cost 6 through C</strong>.</p>
+        <p>After all routers have exchanged tables several times, the tables stop changing. Each entry shows the cost, with the next router in brackets (a dash means directly connected):</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Router</th><th>To A</th><th>To B</th><th>To C</th><th>To D</th><th>To E</th></tr></thead>
+          <tbody>
+            <tr><td>A</td><td>0</td><td>5 (&mdash;)</td><td>2 (&mdash;)</td><td>3 (&mdash;)</td><td>6 (C)</td></tr>
+            <tr><td>B</td><td>5 (&mdash;)</td><td>0</td><td>4 (&mdash;)</td><td>8 (A)</td><td>3 (&mdash;)</td></tr>
+            <tr><td>C</td><td>2 (&mdash;)</td><td>4 (&mdash;)</td><td>0</td><td>5 (A)</td><td>4 (&mdash;)</td></tr>
+            <tr><td>D</td><td>3 (&mdash;)</td><td>8 (A)</td><td>5 (A)</td><td>0</td><td>9 (A)</td></tr>
+            <tr><td>E</td><td>6 (C)</td><td>3 (&mdash;)</td><td>4 (&mdash;)</td><td>9 (C)</td><td>0</td></tr>
+          </tbody>
+        </table></div>
+        <p>Notice that A&rsquo;s row matches the table Dijkstra produced in Problem 1. Two different methods, one answer.</p></div>
+      </details>
+
+      <details class="worked">
+        <summary>Problem 3: two-node instability with real numbers</summary>
+        <div class="body"><p>Network X connects to A at cost 2, and A connects to B at cost 4. Before the failure, A reaches X at 2, and B reaches X at 4 + 2 = 6 through A. The X&ndash;A link fails.</p>
+<pre><code>A: X unreachable (infinity)       B: X = 6 via A
+B sends its table to A:  A hears X = 6, records 4 + 6 = 10 via B
+A sends its table to B:  B hears X = 10, records 4 + 10 = 14 via A
+B sends its table to A:  A records 4 + 14 = 18 via B
+...and so on, each exchange adding 4</code></pre>
+        <p>With split horizon, B never sends X to A (it learned X from A), so A keeps X as unreachable and the loop never begins.</p></div>
+      </details>
+
+      <details class="worked">
+        <summary>Problem 4: RIP or OSPF, which path is chosen?</summary>
+        <div class="body"><p>A router can reach a server by two paths. Path 1 crosses 2 links of 10 Mbps (megabits per second) each. Path 2 crosses 3 links of 100 Mbps each. Let the OSPF cost of a link be 100 Mbps divided by its speed, so a 10 Mbps link costs 10 and a 100 Mbps link costs 1.</p>
+        <p>RIP counts hops, so it picks Path 1 (2 hops against 3), which is the slow route. OSPF adds the costs: Path 1 is 10 + 10 = 20 and Path 2 is 1 + 1 + 1 = 3, so it picks the faster Path 2.</p></div>
+      </details>
+
+      <details class="worked">
+        <summary>Problem 5: the actual bytes of a RIP message</summary>
+        <div class="body"><p>Router R2 from the office example sends its table to R1. It includes 10.0.2.0/24 (its own network, cost 1) and 10.0.3.0/24 (learned from R3, cost 2). It leaves out 10.0.1.0/24, because it learned that one from R1: this is split horizon at work. The message is 44 bytes, shown in hexadecimal (base 16, two digits per byte) and carried inside a UDP datagram to port 520:</p>
+<pre><code>02 02 00 00
+00 02 00 00  0A 00 02 00  FF FF FF 00  00 00 00 00  00 00 00 01
+00 02 00 00  0A 00 03 00  FF FF FF 00  00 00 00 00  00 00 00 02</code></pre>
+        <div class="table-wrap bytes"><table>
+          <thead><tr><th>Bytes</th><th>Value</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>02</td><td>Command 2: this is a response</td></tr>
+            <tr><td>1</td><td>02</td><td>Version 2</td></tr>
+            <tr><td>2</td><td>00 00</td><td>Unused, set to zero</td></tr>
+            <tr><td>2</td><td>00 02</td><td>Address family 2: Internet Protocol</td></tr>
+            <tr><td>2</td><td>00 00</td><td>Route tag (not used here)</td></tr>
+            <tr><td>4</td><td>0A 00 02 00</td><td>Network 10.0.2.0 (00001010.00000000.00000010.00000000)</td></tr>
+            <tr><td>4</td><td>FF FF FF 00</td><td>Mask 255.255.255.0 (11111111.11111111.11111111.00000000), so /24</td></tr>
+            <tr><td>4</td><td>00 00 00 00</td><td>Next hop: zero means &ldquo;send to me, the sender&rdquo;</td></tr>
+            <tr><td>4</td><td>00 00 00 01</td><td>Cost: 1 hop</td></tr>
+          </tbody>
+        </table></div>
+        <p>The second entry has exactly the same layout, with network 0A 00 03 00 (10.0.3.0) and cost 02. When R1 receives the message it adds 1 to each cost, giving 10.0.2.0/24 at 2 hops and 10.0.3.0/24 at 3 hops, both through R2. That matches the table in the RIP example earlier.</p></div>
+      </details>
+
+      <details class="worked">
+        <summary>Problem 6: the smallest BGP message in bits</summary>
+        <div class="body"><p>Every BGP message begins with a 19-byte header: a 16-byte marker, a 2-byte length and a 1-byte type. A Keepalive message, which BGP routers send now and then to show they are still alive, is only that header and nothing else:</p>
+<pre><code>FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF   marker: sixteen bytes, all ones
+00 13                                             length: 0000000000010011 = 19 bytes
+04                                                type 4 = Keepalive</code></pre>
+        <p>The types are 1 for Open, 2 for Update, 3 for Notification and 4 for Keepalive. The whole message travels inside a TCP connection on port 179.</p></div>
+      </details>
+
+      <h2>Real-world applications</h2>
+      <p><strong>RIP</strong> still appears in small office networks and teaching labs because it takes only a few commands to switch on. <strong>OSPF</strong> is widely used inside companies, universities and ISP networks, where a quick reaction to a failed link matters. <strong>BGP</strong> holds the Internet together: every ISP and large organisation uses it to announce its address blocks to its neighbours, and a configuration mistake in BGP has, on more than one occasion, taken large services offline for hours.</p>
+      <p><strong>Static routes</strong> are common at the edge. The router in your home has a single default route that points to your ISP. And <strong>flooding</strong> underlies the way OSPF routers share their link state packets.</p>
+
+      <h2>Advantages, limitations and comparisons</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Method</th><th>Strengths</th><th>Limitations</th></tr></thead>
+        <tbody>
+          <tr><td>Static</td><td>No overhead, predictable</td><td>Cannot react to failures, hard to manage at scale</td></tr>
+          <tr><td>Flooding</td><td>Very robust, needs no map, finds the shortest path</td><td>Floods the network with duplicates</td></tr>
+          <tr><td>Distance vector</td><td>Simple, low memory</td><td>Slow after bad news, count to infinity, ignores bandwidth in RIP</td></tr>
+          <tr><td>Link state</td><td>Fast convergence, loop-free once maps agree</td><td>More memory, processing and flooding traffic</td></tr>
+          <tr><td>Path vector</td><td>Policy control, built-in loop prevention</td><td>Complex, slower, relies on trust between neighbours</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2>Key takeaways</h2>
+      <div class="takeaways"><ul>
+        <li>Routing builds the table, and forwarding uses it for every packet.</li>
+        <li>The optimality principle means the best paths to one destination form a sink tree, which has no loops.</li>
+        <li>Dijkstra&rsquo;s algorithm computes shortest paths from a complete map using a tentative list and a permanent list.</li>
+        <li>Distance vector shares tables with neighbours. It can count to infinity, and split horizon, poison reverse and triggered updates reduce the problem.</li>
+        <li>Link state floods link information so every router can run Dijkstra on the same map.</li>
+        <li>Path vector (BGP) carries lists of autonomous systems, which allows policy and prevents loops.</li>
+        <li>RIP and OSPF run inside an AS, and BGP runs between ASes.</li>
+      </ul></div>
+
+      <h2>Check your understanding</h2>
+      <section class="quiz" data-answer="b" aria-labelledby="q1">
+        <h3 id="q1">Question 1</h3>
+        <p class="q">How does split horizon help a distance vector protocol?</p>
+        <button class="opt" type="button" data-opt="a">It sends the routing table more often</button>
+        <button class="opt" type="button" data-opt="b">A router does not advertise a route back out of the interface it learned it from</button>
+        <button class="opt" type="button" data-opt="c">It floods updates to every router</button>
+        <p class="explain" aria-live="polite" hidden>Withholding a route from the neighbour it came from stops two routers from feeding each other stale information, which is what drives two-node count to infinity.</p>
+      </section>
+      <section class="quiz" data-answer="a" aria-labelledby="q2">
+        <h3 id="q2">Question 2</h3>
+        <p class="q">In the lecture network, what is the cost of the shortest path from A to E?</p>
+        <button class="opt" type="button" data-opt="a">6, through C</button>
+        <button class="opt" type="button" data-opt="b">8, through B</button>
+        <button class="opt" type="button" data-opt="c">9, through D</button>
+        <p class="explain" aria-live="polite" hidden>A to C costs 2 and C to E costs 4, giving 6. The route through B costs 5 + 3 = 8. D is not on a path to E at all.</p>
+      </section>
+      <section class="quiz" data-answer="b" aria-labelledby="q3">
+        <h3 id="q3">Question 3</h3>
+        <p class="q">Which transport does BGP use for its messages?</p>
+        <button class="opt" type="button" data-opt="a">UDP, port 520</button>
+        <button class="opt" type="button" data-opt="b">TCP, port 179</button>
+        <button class="opt" type="button" data-opt="c">Directly inside IP, with no transport protocol</button>
+        <p class="explain" aria-live="polite" hidden>BGP runs over a TCP connection on port 179, which gives it reliable delivery. RIP uses UDP port 520, and OSPF runs directly inside IP.</p>
+      </section>
+
+      <h2>References and further reading</h2>
+      <ul>
+        <li>A. S. Tanenbaum and D. J. Wetherall, <em>Computer Networks</em>, chapter on the network layer (routing algorithms).</li>
+        <li>B. A. Forouzan, <em>Data Communications and Networking</em>, chapter on delivery, forwarding and routing.</li>
+        <li>Course lecture slides, chapter 22 (distance vector, link state, path vector).</li>
+        <li>RFC 2453, RIP Version 2; RFC 2328, OSPF Version 2; RFC 4271, A Border Gateway Protocol 4 (Request for Comments documents from the Internet Engineering Task Force).</li>
+      </ul>
+
+      <nav id="pager" class="pager" aria-label="Article navigation"></nav>
+    </article>
+  </div>
+
   <div id="site-footer"></div>
 </body>
 </html>

@@ -10,7 +10,7 @@
       title: 'Architecture, functions and internetworking',
       sum: 'What the network layer is for, the services it offers the layers around it, and how unlike networks are joined into one internet.',
       topics: ['Design issues', 'Functions and services', 'Connectionless and connection-oriented service', 'Datagram networks', 'Internetworking', 'Direct and indirect delivery', 'Tunneling'] },
-    { id: 'routing', cat: 'Routing', min: 18,
+    { id: 'routing', cat: 'Routing', min: 25,
       title: 'Routing algorithms and techniques',
       sum: 'How routers decide where packets go: shortest paths, flooding, distance vector, link state and the protocols built on them.',
       topics: ['Optimality principle', 'Dijkstra shortest path', 'Flooding', 'Distance vector routing', 'Link state routing', 'Path vector routing', 'Static and dynamic routing', 'RIP', 'OSPF', 'BGP', 'Count-to-infinity problem'] },
